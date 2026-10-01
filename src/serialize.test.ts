@@ -37,7 +37,7 @@ describe('buildReport', () => {
         }],
         attachments: [
           { name: 'cart', contentType: 'image/png', body: Buffer.from('png') },
-          { name: 'finale:step:read the total', contentType: 'image/png', body: Buffer.from('step') },
+          { name: 'reborn:step:read the total', contentType: 'image/png', body: Buffer.from('step') },
         ],
       }],
     };

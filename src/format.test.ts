@@ -63,14 +63,14 @@ describe('attachment names', () => {
 });
 
 describe('parseShotName', () => {
-  it('reads Finale shot prefixes', () => {
-    assert.deepEqual(parseShotName('finale:step:read the receipt'), {
+  it('reads Reborn shot prefixes', () => {
+    assert.deepEqual(parseShotName('reborn:step:read the receipt'), {
       name: 'read the receipt',
       role: 'step',
       stepTitle: 'read the receipt',
     });
-    assert.deepEqual(parseShotName('finale:failure'), { name: 'Failure', role: 'failure' });
-    assert.deepEqual(parseShotName('finale:last'), { name: 'Last step', role: 'last' });
+    assert.deepEqual(parseShotName('reborn:failure'), { name: 'Failure', role: 'failure' });
+    assert.deepEqual(parseShotName('reborn:last'), { name: 'Last step', role: 'last' });
     assert.equal(parseShotName('cart').name, 'cart');
     assert.equal(parseShotName('cart').role, undefined);
   });

@@ -7,7 +7,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['./dist/index.js', {
-      outputFolder: 'finale-report',
+      outputFolder: 'reborn-report',
       open: 'never',
       screenshots: 'steps',
       company: 'Sandata',

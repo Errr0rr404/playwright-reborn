@@ -1,9 +1,10 @@
-import { cp, mkdir } from 'node:fs/promises';
+import { cp, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fonts = path.join(root, 'dist', 'ui', 'fonts');
+await rm(fonts, { recursive: true, force: true });
 await mkdir(fonts, { recursive: true });
 await cp(path.join(root, 'ui', 'report.css'), path.join(root, 'dist', 'ui', 'report.css'));
 await cp(path.join(root, 'ui', 'report.js'), path.join(root, 'dist', 'ui', 'report.js'));

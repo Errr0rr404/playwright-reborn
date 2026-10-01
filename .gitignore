@@ -1,5 +1,8 @@
 node_modules/
+*.tgz
 dist/
+reborn-report/
+reborn-report-*/
 finale-report/
 finale-report-*/
 marquee-report/
