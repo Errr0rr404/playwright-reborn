@@ -10,8 +10,8 @@ export default defineConfig({
       outputFolder: 'reborn-report',
       open: 'never',
       screenshots: 'steps',
-      company: 'Sandata',
       accent: 'green',
+      inline: true,
     }],
   ],
   use: {

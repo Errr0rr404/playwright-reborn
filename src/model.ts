@@ -80,6 +80,8 @@ export type ReportTest = {
   attempts: Attempt[];
 };
 
+export type InfoRow = { label: string; value: string };
+
 export type Report = {
   version: 2;
   screenshots: ShotMode;
@@ -97,6 +99,7 @@ export type Report = {
   startTime: string;
   duration: number;
   projectName: string;
+  info: InfoRow[];
   projects: string[];
   workers: number;
   shard: string | null;
@@ -109,6 +112,7 @@ export type Report = {
 export type PendingFile = {
   name: string;
   target: string;
+  contentType?: string;
   sourcePath?: string;
   body?: Buffer;
 };

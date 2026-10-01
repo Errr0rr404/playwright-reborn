@@ -1,6 +1,6 @@
 {
   "name": "playwright-reborn",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A Playwright reporter that writes one self-contained HTML report when the run finishes.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,6 +11,8 @@
     },
     "./fixture": {
       "types": "./dist/fixture.d.ts",
+      "import": "./dist/fixture.js",
+      "require": "./dist/fixture.js",
       "default": "./dist/fixture.js"
     }
   },
@@ -25,7 +27,7 @@
     "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
     "prepare": "npm run build",
     "prepublishOnly": "npm test",
-    "test": "npm run build && node --test dist/format.test.js dist/status.test.js dist/options.test.js dist/paths.test.js dist/serialize.test.js",
+    "test": "npm run build && node --test dist/format.test.js dist/status.test.js dist/options.test.js dist/paths.test.js dist/serialize.test.js dist/info.test.js dist/context.test.js dist/render.test.js",
     "demo": "npm run build && playwright test",
     "verify": "npm run demo; node scripts/verify-ui.mjs"
   },

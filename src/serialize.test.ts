@@ -58,7 +58,15 @@ describe('buildReport', () => {
         errors: [{ message: '\u001b[31mExpected 1842\u001b[0m' }],
         stdout: [],
         stderr: [],
-        steps: [],
+        steps: [
+          {
+            title: 'Before Hooks',
+            category: 'hook',
+            duration: 1,
+            steps: [{ title: 'Click', category: 'pw:api', duration: 1, steps: [] }],
+          },
+          { title: 'read the receipt', category: 'test.step', duration: 5, steps: [] },
+        ],
         attachments: [],
       }],
     };
@@ -96,10 +104,12 @@ describe('buildReport', () => {
       duration: 900,
       generatedAt: started.toISOString(),
       errors: [],
+      info: [{ label: 'Environment', value: 'qa' }],
     });
 
     assert.equal(report.word, 'Broken');
-    assert.equal(report.company, 'Sandata');
+    assert.equal(report.company, 'playwrightReport');
+    assert.deepEqual(report.info, [{ label: 'Environment', value: 'qa' }]);
     assert.equal(report.accent, 'green');
     assert.equal(report.overview, 'chart');
     assert.equal(report.summary, '1 failed. 3 ran.');
@@ -109,6 +119,7 @@ describe('buildReport', () => {
       'total matches',
     ]);
     assert.equal(report.tests[0].status, 'failed');
+    assert.deepEqual(report.tests[0].attempts[0].steps.map((step) => step.title), ['read the receipt']);
     assert.equal(report.tests[0].attempts[0].errors[0].message, 'Expected 1842');
     assert.deepEqual(report.tests[2].group, ['cart']);
     assert.equal(report.tests[2].file, 'demo/cart.spec.ts');

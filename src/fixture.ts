@@ -1,45 +1,56 @@
-import { test as base, expect, type Page, type TestInfo } from '@playwright/test';
+import { test as base, expect, type TestInfo } from '@playwright/test';
+import { forgetPage, pageFor, rememberPage } from './context';
 
-let activePage: Page | undefined;
-let activeInfo: TestInfo | undefined;
-
-async function shot(name: string): Promise<void> {
-  if (!activePage || !activeInfo) return;
+async function shot(name: string, testInfo?: TestInfo): Promise<void> {
+  let info = testInfo;
+  if (!info) {
+    try {
+      info = test.info();
+    } catch {
+      return;
+    }
+  }
+  const page = pageFor(info);
+  if (!page) return;
   try {
-    const body = await activePage.screenshot({ timeout: 5_000 });
-    await activeInfo.attach(name, { body, contentType: 'image/png' });
+    const body = await page.screenshot({ timeout: 5_000 });
+    await info.attach(name, { body, contentType: 'image/png' });
   } catch {
     // A closed page should not hide the test result.
   }
 }
 
+function screenshotMode(): string {
+  return process.env.REBORN_SCREENSHOTS || 'failure';
+}
+
 export const test = base.extend({
   page: async ({ page }, use, testInfo) => {
-    activePage = page;
-    activeInfo = testInfo;
+    rememberPage(testInfo, page);
     try {
       await use(page);
-      const mode = process.env.REBORN_SCREENSHOTS || 'failure';
+      const mode = screenshotMode();
       const failed = testInfo.status === 'failed' || testInfo.status === 'timedOut';
-      if (mode === 'last' || (mode === 'steps' && !failed)) await shot('reborn:last');
-      if ((mode === 'failure' || mode === 'steps') && failed) await shot('reborn:failure');
+      if (mode === 'last' || (mode === 'steps' && !failed)) await shot('reborn:last', testInfo);
+      if ((mode === 'failure' || mode === 'steps') && failed) await shot('reborn:failure', testInfo);
     } finally {
-      activePage = undefined;
-      activeInfo = undefined;
+      forgetPage(testInfo);
     }
   },
 });
 
 export { expect };
 
-export async function step(title: string, body: () => Promise<void>): Promise<void> {
-  await test.step(title, async () => {
+export async function step<T>(title: string, body: () => Promise<T> | T): Promise<T> {
+  const testInfo = test.info();
+  return test.step(title, async () => {
     try {
-      await body();
+      const value = await body();
+      if (screenshotMode() === 'steps') await shot(`reborn:step:${title}`, testInfo);
+      return value;
     } catch (error) {
-      if (process.env.REBORN_SCREENSHOTS === 'steps') await shot(`reborn:step:${title}`);
+      if (screenshotMode() === 'steps') await shot(`reborn:step:${title}`, testInfo);
       throw error;
     }
-    if (process.env.REBORN_SCREENSHOTS === 'steps') await shot(`reborn:step:${title}`);
   });
 }

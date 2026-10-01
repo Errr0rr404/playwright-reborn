@@ -29,6 +29,8 @@
     listLimit: 200,
     shotFilter: 'all',
     logQuery: '',
+    tag: 'all',
+    projectFilter: 'all',
     overview: data.overview === 'timeline' ? 'timeline' : 'chart',
     order: 'grouped',
     band: 'all',
@@ -163,7 +165,7 @@
 
   function companyName() {
     var name = typeof data.company === 'string' ? data.company.trim() : '';
-    return name || 'Sandata';
+    return name || 'Report';
   }
 
   function accentName() {
@@ -250,6 +252,7 @@
       '<p class="time" id="time"></p>',
       '</header>',
       '<div id="errors"></div>',
+      '<dl class="info" id="info"></dl>',
       '<section class="console">',
       '<div class="console-body">',
       '<p class="section-label">Results</p>',
@@ -272,11 +275,28 @@
     document.getElementById('summary').textContent = data.summary || '';
     countUp(document.getElementById('time'), data.duration || 0, formatDuration);
     paintErrors();
+    paintInfo();
     paintCounts(document.getElementById('legend'), false);
     paintDuration();
     paintStrip();
     applyOverview();
     showNow(state.selectedId);
+  }
+
+  function paintInfo() {
+    var host = document.getElementById('info');
+    if (!host) return;
+    var rows = Array.isArray(data.info) ? data.info : [];
+    if (!rows.length) {
+      host.hidden = true;
+      return;
+    }
+    fill(host, rows.map(function (row) {
+      return el('div', { class: 'info-row' }, [
+        el('dt', null, [row.label]),
+        el('dd', null, [row.value]),
+      ]);
+    }));
   }
 
   function bandLabel(id) {
@@ -505,6 +525,45 @@
     });
   }
 
+  function uniqueValues(pick) {
+    var seen = {};
+    data.tests.forEach(function (test) {
+      pick(test).forEach(function (value) {
+        if (value) seen[value] = true;
+      });
+    });
+    return Object.keys(seen).sort();
+  }
+
+  function paintTags() {
+    var host = document.getElementById('tags');
+    if (!host) return;
+    var tags = uniqueValues(function (test) { return test.tags || []; });
+    var projects = uniqueValues(function (test) { return test.project ? [test.project] : []; });
+    var nodes = [];
+    if (tags.length) {
+      nodes.push(el('span', { class: 'order-label' }, ['Tags']));
+      nodes.push(chip('tag-btn', 'all', 'All', state.tag));
+      tags.forEach(function (tag) { nodes.push(chip('tag-btn', tag, tag, state.tag)); });
+    }
+    if (projects.length > 1) {
+      nodes.push(el('span', { class: 'order-label' }, ['Project']));
+      nodes.push(chip('project-btn', 'all', 'All', state.projectFilter));
+      projects.forEach(function (project) { nodes.push(chip('project-btn', project, project, state.projectFilter)); });
+    }
+    host.hidden = nodes.length === 0;
+    fill(host, nodes);
+  }
+
+  function chip(className, value, label, current) {
+    return el('button', {
+      class: className,
+      type: 'button',
+      'data-value': value,
+      'aria-pressed': current === value ? 'true' : 'false',
+    }, [label]);
+  }
+
   function sortTests(tests) {
     var copy = tests.slice();
     if (state.order === 'fastest') {
@@ -541,8 +600,9 @@
     if (built.tests) return;
     built.tests = true;
     var host = document.getElementById('panel-tests');
-    host.innerHTML = '<div class="legend" id="test-tools"></div><div class="order" id="order"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
+    host.innerHTML = '<div class="legend" id="test-tools"></div><div class="tags" id="tags"></div><div class="order" id="order"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
     paintCounts(document.getElementById('test-tools'), true);
+    paintTags();
     paintOrder();
     paintList();
     paintDetail();
@@ -946,6 +1006,26 @@
         paintDetail();
         return;
       }
+      var tag = target.closest('.tag-btn');
+      if (tag) {
+        state.tag = tag.dataset.value || 'all';
+        state.listLimit = 200;
+        keepSelectionInFilter();
+        paintTags();
+        paintList();
+        paintDetail();
+        return;
+      }
+      var projectButton = target.closest('.project-btn');
+      if (projectButton) {
+        state.projectFilter = projectButton.dataset.value || 'all';
+        state.listLimit = 200;
+        keepSelectionInFilter();
+        paintTags();
+        paintList();
+        paintDetail();
+        return;
+      }
       var order = target.closest('.order-btn');
       if (order) {
         state.order = order.dataset.order || 'grouped';
@@ -1102,6 +1182,8 @@
       state.filter = 'all';
       state.query = '';
       state.band = 'all';
+      state.tag = 'all';
+      state.projectFilter = 'all';
       var find = document.getElementById('find');
       if (find) find.value = '';
     }
@@ -1114,6 +1196,7 @@
     showTab('tests');
     if (built.tests) {
       syncPressed();
+      paintTags();
       paintOrder();
       paintList();
       paintDetail();
@@ -1144,6 +1227,8 @@
     state.filter = 'all';
     state.query = '';
     state.band = 'all';
+    state.tag = 'all';
+    state.projectFilter = 'all';
     var find = document.getElementById('find');
     if (find) find.value = '';
     state.selectedId = id;
@@ -1151,6 +1236,7 @@
     state.testPane = 'shots';
     showTab('tests');
     if (built.tests) {
+      paintTags();
       paintOrder();
       paintList();
       paintDetail();
@@ -1191,6 +1277,8 @@
     var query = state.query.trim().toLowerCase();
     return data.tests.filter(function (test) {
       if (state.filter !== 'all' && test.status !== state.filter) return false;
+      if (state.tag !== 'all' && (test.tags || []).indexOf(state.tag) === -1) return false;
+      if (state.projectFilter !== 'all' && test.project !== state.projectFilter) return false;
       if (state.band !== 'all' && (test.status === 'skipped' || durationBand(test.duration) !== state.band)) return false;
       if (!query) return true;
       var blob = [test.title, test.file, test.project].concat(test.group || [], test.tags || []).join(' ').toLowerCase();
@@ -1266,6 +1354,7 @@
 
   function safeSrc(value) {
     if (typeof value !== 'string' || !value) return '';
+    if (value.indexOf('data:image/') === 0 && value.indexOf(' ') === -1) return value;
     if (!value.startsWith('assets/attachments/')) return '';
     if (value.indexOf('..') !== -1 || value.indexOf('\\') !== -1 || value.indexOf('://') !== -1) return '';
     return value;

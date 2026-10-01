@@ -9,7 +9,7 @@ import {
   safeFileName,
   stripAnsi,
 } from './format';
-import type { Accent, Attempt, PendingFile, Report, ReportAttachment, ReportError, RunStatus, ShotMode, Step, StepDetail } from './model';
+import type { Accent, Attempt, InfoRow, PendingFile, Report, ReportAttachment, ReportError, RunStatus, ShotMode, Step, StepDetail } from './model';
 import { relativePosix } from './paths';
 import { countTests, displayStatus, isExpectedFailure, outcomeWord, summaryLine } from './status';
 
@@ -83,6 +83,7 @@ export type BuildInput = {
   showLogs?: boolean;
   showFiles?: boolean;
   overview?: 'chart' | 'timeline';
+  info?: InfoRow[];
 };
 
 function walkSuites(test: SourceTest): SourceSuite[] {
@@ -139,7 +140,8 @@ function mapSteps(steps: SourceStep[] | undefined, rootDir: string, depth: numbe
   for (const step of steps) {
     const kids = mapSteps(step.steps, rootDir, depth + 1, detail);
     const hide = detail === 'user' && (step.category === 'pw:api' || step.category === 'fixture');
-    if (hide) {
+    const quietHook = detail === 'user' && step.category === 'hook' && !step.error;
+    if (hide || quietHook) {
       mapped.push(...kids);
       continue;
     }
@@ -222,6 +224,7 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
         files.push({
           name: parsed.name,
           target,
+          contentType: attachment.contentType,
           sourcePath: attachment.path,
           body: attachment.body,
         });
@@ -281,7 +284,7 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
     playwrightVersion: input.playwrightVersion,
     status: input.status,
     word: outcomeWord(input.status),
-    company: (input.company || 'Sandata').trim() || 'Sandata',
+    company: (input.company || input.projectName || 'Report').trim() || 'Report',
     accent: input.accent || 'green',
     showLogs: input.showLogs !== false,
     showFiles: input.showFiles !== false,
@@ -290,6 +293,7 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
     startTime: input.startTime.toISOString(),
     duration: input.duration,
     projectName: input.projectName,
+    info: input.info || [],
     projects: input.projects,
     workers: input.workers,
     shard: input.shard,

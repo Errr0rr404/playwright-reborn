@@ -7,6 +7,7 @@ import { resolveOutputFolder } from './paths';
 import { writeReport } from './render';
 import { buildReport } from './serialize';
 import { capText, stripAnsi } from './format';
+import { infoRows, listValue, textValue } from './info';
 
 class RebornReporter implements Reporter {
   private readonly parsed: ReturnType<typeof parseOptions>;
@@ -50,6 +51,35 @@ class RebornReporter implements Reporter {
     return process.cwd();
   }
 
+  private metadata(key: string): unknown {
+    const metadata = this.config?.metadata as Record<string, unknown> | undefined;
+    return metadata ? metadata[key] : undefined;
+  }
+
+  private runInfo() {
+    const config = this.config;
+    const baseURL = textValue(this.metadata('baseURL')) || config?.projects.map((project) => textValue(project.use.baseURL)).find(Boolean) || '';
+    const defects = [
+      ...this.parsed.defects,
+      ...listValue(this.metadata('defects')),
+      ...listValue(this.metadata('jira')),
+    ];
+    return infoRows({
+      suite: this.parsed.suite || textValue(this.metadata('suite')) || textValue(this.metadata('suiteName')),
+      user: this.parsed.user || textValue(this.metadata('user')) || process.env.BUILD_USER || process.env.GITHUB_ACTOR || process.env.USER || '',
+      environment: this.parsed.environment || textValue(this.metadata('environment')) || process.env.TEST_ENV || '',
+      state: this.parsed.state || textValue(this.metadata('state')) || process.env.TEST_STATE || '',
+      defects: [...new Set(defects)].join(', '),
+      baseURL,
+      branch: textValue(this.metadata('branch')) || process.env.GITHUB_REF_NAME || process.env.GIT_BRANCH || process.env.BRANCH_NAME || '',
+      sha: textValue(this.metadata('sha')) || process.env.GITHUB_SHA || process.env.GIT_COMMIT || process.env.COMMIT_SHA || '',
+      projects: config?.projects.map((project) => project.name).filter(Boolean).join(', ') || '',
+      workers: config ? String(config.workers) : '',
+      shard: config?.shard ? `${config.shard.current}/${config.shard.total}` : '',
+      playwright: config?.version || '',
+    });
+  }
+
   private folderFor(config: FullConfig): string {
     if (this.parsed.outputExplicit || !config.shard) return this.parsed.outputFolder;
     return `${this.parsed.outputFolder}-shard-${config.shard.current}`;
@@ -79,8 +109,12 @@ class RebornReporter implements Reporter {
       showLogs: this.parsed.showLogs,
       showFiles: this.parsed.showFiles,
       overview: this.parsed.overview,
+      info: this.runInfo(),
     });
-    const indexPath = await writeReport(outputDir, report, files, path.join(__dirname, 'ui'));
+    const indexPath = await writeReport(outputDir, report, files, path.join(__dirname, 'ui'), {
+      inline: this.parsed.inline,
+      reportFileName: this.parsed.reportFileName,
+    });
     process.stdout.write(`\nReborn report: ${indexPath}\n`);
     const failed = status !== 'passed';
     if (this.parsed.open === 'always' || (this.parsed.open === 'on-failure' && failed)) {

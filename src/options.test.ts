@@ -10,12 +10,24 @@ describe('parseOptions', () => {
       open: 'on-failure',
       screenshots: 'failure',
       steps: 'user',
-      company: 'Sandata',
+      company: '',
       accent: 'green',
       showLogs: true,
       showFiles: true,
       overview: 'chart',
+      inline: true,
+      reportFileName: 'index.html',
+      suite: '',
+      user: '',
+      environment: '',
+      state: '',
+      defects: [],
     });
+  });
+
+  it('rejects a path in the report file name', () => {
+    assert.throws(() => parseOptions({ reportFileName: '../index.html' }), /reportFileName must be/);
+    assert.equal(parseOptions({ inline: false, defects: 'PAY-1' }).defects[0], 'PAY-1');
   });
 
   it('rejects an unknown overview', () => {
