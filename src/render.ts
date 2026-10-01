@@ -146,6 +146,10 @@ export async function writeReport(
   await prepareOutput(outputDir);
   const assets = path.join(outputDir, 'assets');
   await fs.mkdir(path.join(assets, 'attachments'), { recursive: true });
+  await fs.mkdir(path.join(assets, 'fonts'), { recursive: true });
+  for (const license of ['Geist-OFL.txt', 'JetBrainsMono-OFL.txt']) {
+    await fs.copyFile(path.join(uiDir, 'fonts', license), path.join(assets, 'fonts', license));
+  }
   if (!output.inline) {
     await fs.copyFile(stylesheet, path.join(assets, 'report.css'));
     await fs.copyFile(script, path.join(assets, 'report.js'));

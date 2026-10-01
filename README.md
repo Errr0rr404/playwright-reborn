@@ -118,4 +118,6 @@ Set `open: 'never'` when `CI` is set so the reporter does not launch a browser o
 
 Open source by World of Z. The code is MIT.
 
-Geist and JetBrains Mono are included under the SIL Open Font License. Those license files are copied into each report.
+Geist and JetBrains Mono are included under the SIL Open Font License. With `inline: true`, the fonts are embedded in the HTML file. The license files are still written to `assets/fonts/` in the report folder.
+
+Release notes are in `CHANGELOG.md`.

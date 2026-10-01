@@ -932,7 +932,7 @@
       (test.attempts || []).forEach(function (attempt, index) {
         (attempt.attachments || []).forEach(function (file) {
           if (file.kind === 'image') return;
-          var label = file.kind === 'trace' ? 'Trace' : file.kind === 'video' ? 'Video' : (file.name || 'File');
+          var label = file.kind === 'trace' ? 'Trace' : file.kind === 'video' ? 'Video' : 'File';
           var line = [el('span', { class: 'file-kind' }, [label])];
           if ((test.attempts || []).length > 1) line.push(el('span', { class: 'now-file' }, ['Attempt ' + (index + 1)]));
           if (file.omitted || !safeSrc(file.path)) {
@@ -941,7 +941,8 @@
             line.push(el('video', { class: 'video', controls: 'true', preload: 'metadata', src: safeSrc(file.path) }));
           } else {
             var href = safeSrc(file.path);
-            line.push(el('a', { class: 'file-link', href: href, download: '' }, [file.name || 'Download']));
+            var linkText = file.kind === 'trace' ? 'Download' : (file.name || 'Download');
+            line.push(el('a', { class: 'file-link', href: href, download: '' }, [linkText]));
             if (file.kind === 'trace') {
               line.push(el('span', { class: 'now-file' }, ['npx playwright show-trace ' + href]));
             }

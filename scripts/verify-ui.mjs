@@ -45,6 +45,7 @@ assert.equal(await page.locator('#duration [data-band="over5"] .n').innerText(),
 assert.equal(await page.getByRole('heading', { name: 'Slowest' }).count(), 0);
 assert.equal(await page.locator('#strip-window').isHidden(), true);
 await page.getByRole('button', { name: 'Timeline', exact: true }).click();
+assert.equal(await page.locator('#duration').isHidden(), true);
 const failed = data.tests.find((test) => test.status === 'failed');
 const failedRow = page.locator('#strip .run-row[data-status="failed"]');
 const failedText = await failedRow.innerText();
