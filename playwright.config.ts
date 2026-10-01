@@ -1,0 +1,23 @@
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './demo',
+  timeout: 15_000,
+  forbidOnly: true,
+  reporter: [
+    ['list'],
+    ['./dist/index.js', {
+      outputFolder: 'marquee-report',
+      open: 'never',
+      screenshots: 'steps',
+      company: 'Sandata',
+      accent: 'green',
+    }],
+  ],
+  use: {
+    screenshot: 'off',
+    trace: 'retain-on-failure',
+    video: 'off',
+  },
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+});

@@ -1,0 +1,53 @@
+{
+  "name": "playwright-marquee",
+  "version": "0.1.0",
+  "description": "A Playwright reporter that writes a self-contained HTML report when the run finishes.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./fixture": {
+      "types": "./dist/fixture.d.ts",
+      "default": "./dist/fixture.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-assets.mjs",
+    "test": "npm run build && node --test dist/format.test.js dist/status.test.js dist/options.test.js dist/paths.test.js dist/serialize.test.js",
+    "demo": "npm run build && playwright test",
+    "verify": "npm run demo; node scripts/verify-ui.mjs"
+  },
+  "keywords": [
+    "playwright",
+    "reporter"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Errr0rr404/playwright-marquee.git"
+  },
+  "homepage": "https://github.com/Errr0rr404/playwright-marquee#readme",
+  "bugs": {
+    "url": "https://github.com/Errr0rr404/playwright-marquee/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.42.0"
+  },
+  "devDependencies": {
+    "@fontsource/geist": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.1.0",
+    "typescript": "^6.0.3"
+  }
+}

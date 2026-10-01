@@ -1,0 +1,7 @@
+node_modules/
+dist/
+marquee-report/
+marquee-report-*/
+test-results/
+playwright-report/
+blob-report/
