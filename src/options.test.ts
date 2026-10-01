@@ -14,7 +14,13 @@ describe('parseOptions', () => {
       accent: 'green',
       showLogs: true,
       showFiles: true,
+      overview: 'chart',
     });
+  });
+
+  it('rejects an unknown overview', () => {
+    assert.throws(() => parseOptions({ overview: 'pie' as 'chart' }), /overview must be/);
+    assert.equal(parseOptions({ overview: 'timeline' }).overview, 'timeline');
   });
 
   it('rejects a blank company name and an unknown accent', () => {

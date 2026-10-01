@@ -29,6 +29,9 @@
     listLimit: 200,
     shotFilter: 'all',
     logQuery: '',
+    overview: data.overview === 'timeline' ? 'timeline' : 'chart',
+    order: 'grouped',
+    band: 'all',
   };
   var selected = testById(state.selectedId);
   if (selected) {
@@ -70,6 +73,13 @@
     el('span', null, [formatWhen(data.generatedAt)]),
     el('span', null, ['Keys 1 to 5 switch tabs. Press / to find a test.']),
   ]);
+  var BANDS = [
+    ['under1', 'Under 1 minute'],
+    ['1to3', '1 to 3 minutes'],
+    ['3to5', '3 to 5 minutes'],
+    ['over5', 'Over 5 minutes'],
+  ];
+
   paintOverview();
   showTab(state.tab, true);
   bind();
@@ -244,10 +254,16 @@
       '<div class="console-body">',
       '<p class="section-label">Results</p>',
       '<div class="legend" id="legend"></div>',
-      '<p class="section-label">Timeline</p>',
-      '<p class="section-note">Tests in the order they started. The bar is how long each one took.</p>',
-      '<div class="strip-window"><div class="strip-scroll"><div class="strip" id="strip" role="group" aria-label="Tests by time"></div></div><div class="now" id="now"></div></div>',
-      '<section class="longest" id="longest"></section>',
+      '<div class="range-head">',
+      '<p class="section-label" id="range-label">Duration</p>',
+      '<div class="views" role="group" aria-label="Overview shape">',
+      '<button type="button" class="view" data-overview="chart">Chart</button>',
+      '<button type="button" class="view" data-overview="timeline">Timeline</button>',
+      '</div>',
+      '</div>',
+      '<p class="section-note" id="range-note"></p>',
+      '<div class="legend" id="duration"></div>',
+      '<div class="strip-window" id="strip-window"><div class="strip-scroll"><div class="strip" id="strip" role="group" aria-label="Tests by time"></div></div></div>',
       '</div>',
       '</section>',
     ].join('');
@@ -257,9 +273,74 @@
     countUp(document.getElementById('time'), data.duration || 0, formatDuration);
     paintErrors();
     paintCounts(document.getElementById('legend'), false);
+    paintDuration();
     paintStrip();
-    paintLongest();
+    applyOverview();
     showNow(state.selectedId);
+  }
+
+  function bandLabel(id) {
+    var found = BANDS.find(function (band) { return band[0] === id; });
+    return found ? found[1] : '';
+  }
+
+  // Same cuts as durationBand in src/format.ts: 1:00, 3:00, and 5:00.
+  function durationBand(ms) {
+    if (!isFinite(ms) || ms < 0) ms = 0;
+    if (ms < 60000) return 'under1';
+    if (ms < 180000) return '1to3';
+    if (ms < 300000) return '3to5';
+    return 'over5';
+  }
+
+  function countedTests() {
+    return data.tests.filter(function (test) { return test.status !== 'skipped'; });
+  }
+
+  function paintDuration() {
+    var host = document.getElementById('duration');
+    if (!host) return;
+    var counts = { under1: 0, '1to3': 0, '3to5': 0, over5: 0 };
+    countedTests().forEach(function (test) {
+      counts[durationBand(test.duration)] += 1;
+    });
+    var max = 1;
+    BANDS.forEach(function (band) { max = Math.max(max, counts[band[0]]); });
+    fill(host, BANDS.map(function (band) {
+      var fillBar = el('span', { class: 'band-fill' });
+      fillBar.style.width = Math.round((counts[band[0]] / max) * 100) + '%';
+      return el('button', {
+        class: 'band',
+        type: 'button',
+        'data-band': band[0],
+        'aria-pressed': state.band === band[0] ? 'true' : 'false',
+      }, [
+        el('span', { class: 'n' }, [String(counts[band[0]])]),
+        el('span', { class: 'band-label' }, [band[1]]),
+        el('span', { class: 'band-track' }, [fillBar]),
+      ]);
+    }));
+  }
+
+  function applyOverview() {
+    var chart = state.overview !== 'timeline';
+    var duration = document.getElementById('duration');
+    var strip = document.getElementById('strip-window');
+    var label = document.getElementById('range-label');
+    var note = document.getElementById('range-note');
+    if (duration) duration.hidden = !chart;
+    if (strip) strip.hidden = chart;
+    if (label) label.textContent = chart ? 'Duration' : 'Timeline';
+    if (note) {
+      var text = chart
+        ? 'How many tests landed in each range. The time includes retries.'
+        : 'Tests in the order they started. The bar is how long each one took.';
+      if (chart && data.counts && data.counts.skipped) text += ' Skipped tests are not in these counts.';
+      note.textContent = text;
+    }
+    document.querySelectorAll('.view').forEach(function (button) {
+      button.setAttribute('aria-pressed', button.dataset.overview === state.overview ? 'true' : 'false');
+    });
   }
 
   function paintErrors() {
@@ -349,7 +430,7 @@
       var fillBar = el('span', { class: 'run-fill', 'data-status': test.status });
       fillBar.style.width = Math.max(2, Math.round(((test.duration || 0) / max) * 100)) + '%';
       return el('button', {
-        class: 'run-row segment',
+        class: 'run-row',
         type: 'button',
         'data-id': test.id,
         'data-status': test.status,
@@ -417,41 +498,52 @@
   function markStrip() {
     var visible = {};
     filteredTests().forEach(function (test) { visible[test.id] = true; });
-    document.querySelectorAll('.segment').forEach(function (segment) {
+    document.querySelectorAll('.run-row').forEach(function (segment) {
       segment.classList.toggle('is-dim', !visible[segment.dataset.id]);
       if (segment.dataset.id === state.selectedId) segment.setAttribute('aria-current', 'true');
       else segment.removeAttribute('aria-current');
     });
   }
 
-  function paintLongest() {
-    var host = document.getElementById('longest');
-    var ranked = data.tests.filter(function (test) { return test.duration > 0; })
-      .slice()
-      .sort(function (a, b) { return b.duration - a.duration || a.title.localeCompare(b.title); })
-      .slice(0, 6);
-    if (!ranked.length) {
-      host.hidden = true;
-      return;
+  function sortTests(tests) {
+    var copy = tests.slice();
+    if (state.order === 'fastest') {
+      copy.sort(function (a, b) { return (a.duration || 0) - (b.duration || 0) || a.title.localeCompare(b.title); });
+    } else if (state.order === 'started') {
+      copy.sort(function (a, b) {
+        return (spanOf(a) ? spanOf(a).start : Infinity) - (spanOf(b) ? spanOf(b).start : Infinity);
+      });
+    } else if (state.order === 'slowest') {
+      copy.sort(function (a, b) { return (b.duration || 0) - (a.duration || 0) || a.title.localeCompare(b.title); });
     }
-    var max = ranked[0].duration || 1;
-    fill(host, [el('h2', null, ['Slowest'])].concat(ranked.map(function (test) {
-      var bar = el('span', { 'data-status': test.status });
-      bar.style.width = Math.max(4, Math.round((test.duration / max) * 100)) + '%';
-      return el('button', { class: 'bar-row', type: 'button', 'data-id': test.id }, [
-        el('span', { class: 'bar-name' }, [test.title]),
-        el('span', { class: 'bar-time' }, [formatDuration(test.duration)]),
-        el('span', { class: 'track' }, [bar]),
-      ]);
-    })));
+    return copy;
+  }
+
+  function paintOrder() {
+    var host = document.getElementById('order');
+    if (!host) return;
+    var orders = [['grouped', 'Grouped'], ['slowest', 'Slowest'], ['fastest', 'Fastest'], ['started', 'Started']];
+    var nodes = [el('span', { class: 'order-label' }, ['Order'])].concat(orders.map(function (order) {
+      return el('button', {
+        class: 'order-btn',
+        type: 'button',
+        'data-order': order[0],
+        'aria-pressed': state.order === order[0] ? 'true' : 'false',
+      }, [order[1]]);
+    }));
+    if (state.band !== 'all') {
+      nodes.push(el('button', { class: 'band-clear', type: 'button', 'aria-pressed': 'true' }, [bandLabel(state.band)]));
+    }
+    fill(host, nodes);
   }
 
   function ensureTests() {
     if (built.tests) return;
     built.tests = true;
     var host = document.getElementById('panel-tests');
-    host.innerHTML = '<div class="legend" id="test-tools"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
+    host.innerHTML = '<div class="legend" id="test-tools"></div><div class="order" id="order"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
     paintCounts(document.getElementById('test-tools'), true);
+    paintOrder();
     paintList();
     paintDetail();
     markStrip();
@@ -463,6 +555,16 @@
     var tests = filteredTests();
     if (!tests.length) {
       fill(host, [el('p', { class: 'empty' }, [data.tests.length ? 'No tests match.' : 'No tests ran.'])]);
+      return;
+    }
+    if (state.order !== 'grouped') {
+      var sorted = sortTests(tests);
+      var shown = sorted.slice(0, state.listLimit);
+      var flat = shown.map(function (test) { return rowButton(test, true); });
+      if (shown.length < sorted.length) {
+        flat.push(el('button', { class: 'more', type: 'button', id: 'show-rest' }, ['Show the rest']));
+      }
+      fill(host, flat);
       return;
     }
     var groups = [];
@@ -813,6 +915,46 @@
         openTest(opener.dataset.id, Number(opener.dataset.attempt || 0));
         return;
       }
+      var view = target.closest('.view');
+      if (view) {
+        state.overview = view.dataset.overview === 'timeline' ? 'timeline' : 'chart';
+        applyOverview();
+        return;
+      }
+      var band = target.closest('.band');
+      if (band) {
+        state.band = state.band === band.dataset.band ? 'all' : band.dataset.band;
+        state.order = state.band === 'all' ? state.order : 'slowest';
+        state.listLimit = 200;
+        keepSelectionInFilter();
+        if (built.tests) {
+          paintOrder();
+          paintList();
+          paintDetail();
+        }
+        paintDuration();
+        showTab('tests');
+        return;
+      }
+      var clearBand = target.closest('.band-clear');
+      if (clearBand) {
+        state.band = 'all';
+        keepSelectionInFilter();
+        paintDuration();
+        paintOrder();
+        paintList();
+        paintDetail();
+        return;
+      }
+      var order = target.closest('.order-btn');
+      if (order) {
+        state.order = order.dataset.order || 'grouped';
+        keepSelectionInFilter();
+        paintOrder();
+        paintList();
+        paintDetail();
+        return;
+      }
       var count = target.closest('.count');
       if (count && !count.classList.contains('shot-filter') && !count.classList.contains('count-static')) {
         state.filter = count.dataset.status || 'all';
@@ -828,7 +970,7 @@
         }
         return;
       }
-      var segment = target.closest('.segment');
+      var segment = target.closest('.run-row');
       if (segment) {
         choose(segment.dataset.id, true);
         return;
@@ -888,13 +1030,13 @@
     });
 
     app.addEventListener('mouseover', function (event) {
-      var segment = event.target && event.target.closest ? event.target.closest('.segment') : null;
+      var segment = event.target && event.target.closest ? event.target.closest('.run-row') : null;
       if (segment) showNow(segment.dataset.id);
     });
     app.addEventListener('mouseout', function (event) {
-      var segment = event.target && event.target.closest ? event.target.closest('.segment') : null;
+      var segment = event.target && event.target.closest ? event.target.closest('.run-row') : null;
       if (!segment) return;
-      var next = event.relatedTarget && event.relatedTarget.closest ? event.relatedTarget.closest('.segment') : null;
+      var next = event.relatedTarget && event.relatedTarget.closest ? event.relatedTarget.closest('.run-row') : null;
       if (!next) showNow(state.selectedId);
     });
 
@@ -959,6 +1101,7 @@
     if (resetFilter) {
       state.filter = 'all';
       state.query = '';
+      state.band = 'all';
       var find = document.getElementById('find');
       if (find) find.value = '';
     }
@@ -971,10 +1114,12 @@
     showTab('tests');
     if (built.tests) {
       syncPressed();
+      paintOrder();
       paintList();
       paintDetail();
       markStrip();
     }
+    paintDuration();
     showNow(state.selectedId);
     var row = document.querySelector('#tests .row[data-id="' + cssEscape(id) + '"]');
     if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
@@ -998,6 +1143,7 @@
     if (!test) return;
     state.filter = 'all';
     state.query = '';
+    state.band = 'all';
     var find = document.getElementById('find');
     if (find) find.value = '';
     state.selectedId = id;
@@ -1005,10 +1151,12 @@
     state.testPane = 'shots';
     showTab('tests');
     if (built.tests) {
+      paintOrder();
       paintList();
       paintDetail();
       markStrip();
     }
+    paintDuration();
   }
 
   function openShot(src, alt) {
@@ -1043,6 +1191,7 @@
     var query = state.query.trim().toLowerCase();
     return data.tests.filter(function (test) {
       if (state.filter !== 'all' && test.status !== state.filter) return false;
+      if (state.band !== 'all' && (test.status === 'skipped' || durationBand(test.duration) !== state.band)) return false;
       if (!query) return true;
       var blob = [test.title, test.file, test.project].concat(test.group || [], test.tags || []).join(' ').toLowerCase();
       if (blob.indexOf(query) !== -1) return true;

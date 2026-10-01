@@ -1,4 +1,4 @@
-import type { Accent, ShotMode, StepDetail } from './model';
+import type { Accent, OverviewMode, ShotMode, StepDetail } from './model';
 
 export type MarqueeOpen = 'always' | 'never' | 'on-failure';
 
@@ -11,6 +11,7 @@ export type MarqueeOptions = {
   accent?: Accent;
   showLogs?: boolean;
   showFiles?: boolean;
+  overview?: OverviewMode;
 };
 
 export type ParsedOptions = {
@@ -23,12 +24,14 @@ export type ParsedOptions = {
   accent: Accent;
   showLogs: boolean;
   showFiles: boolean;
+  overview: OverviewMode;
 };
 
 const OPENS = new Set<MarqueeOpen>(['always', 'never', 'on-failure']);
 const SHOTS = new Set<ShotMode>(['off', 'failure', 'last', 'steps']);
 const STEP_DETAILS = new Set<StepDetail>(['user', 'all']);
 const ACCENTS = new Set<Accent>(['green', 'red', 'blue', 'amber', 'violet']);
+const OVERVIEWS = new Set<OverviewMode>(['chart', 'timeline']);
 
 export function parseOptions(options: MarqueeOptions = {}): ParsedOptions {
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {
@@ -56,12 +59,16 @@ export function parseOptions(options: MarqueeOptions = {}): ParsedOptions {
   }
   const showLogs = flag(options.showLogs, 'showLogs');
   const showFiles = flag(options.showFiles, 'showFiles');
+  const overview = options.overview ?? 'chart';
+  if (!OVERVIEWS.has(overview)) {
+    throw new Error('Marquee overview must be "chart" or "timeline".');
+  }
   const outputExplicit = options.outputFolder !== undefined;
   const outputFolder = options.outputFolder ?? 'marquee-report';
   if (typeof outputFolder !== 'string' || !outputFolder.trim()) {
     throw new Error('Marquee outputFolder must be a non-empty path.');
   }
-  return { outputFolder, outputExplicit, open, screenshots, steps, company: company.trim(), accent, showLogs, showFiles };
+  return { outputFolder, outputExplicit, open, screenshots, steps, company: company.trim(), accent, showLogs, showFiles, overview };
 }
 
 function flag(value: boolean | undefined, name: string): boolean {

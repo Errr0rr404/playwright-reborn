@@ -101,6 +101,7 @@ describe('buildReport', () => {
     assert.equal(report.word, 'Broken');
     assert.equal(report.company, 'Sandata');
     assert.equal(report.accent, 'green');
+    assert.equal(report.overview, 'chart');
     assert.equal(report.summary, '1 failed. 3 ran.');
     assert.deepEqual(report.tests.map((test) => test.title), [
       'receipt shows the order id',

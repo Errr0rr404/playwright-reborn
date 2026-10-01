@@ -78,6 +78,7 @@ class MarqueeReporter implements Reporter {
       accent: this.parsed.accent,
       showLogs: this.parsed.showLogs,
       showFiles: this.parsed.showFiles,
+      overview: this.parsed.overview,
     });
     const indexPath = await writeReport(outputDir, report, files, path.join(__dirname, 'ui'));
     process.stdout.write(`\nMarquee report: ${indexPath}\n`);

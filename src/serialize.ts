@@ -82,6 +82,7 @@ export type BuildInput = {
   accent?: Accent;
   showLogs?: boolean;
   showFiles?: boolean;
+  overview?: 'chart' | 'timeline';
 };
 
 function walkSuites(test: SourceTest): SourceSuite[] {
@@ -284,6 +285,7 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
     accent: input.accent || 'green',
     showLogs: input.showLogs !== false,
     showFiles: input.showFiles !== false,
+    overview: input.overview === 'timeline' ? 'timeline' : 'chart',
     summary: summaryLine(counts),
     startTime: input.startTime.toISOString(),
     duration: input.duration,

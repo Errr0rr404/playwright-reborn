@@ -4,6 +4,7 @@ import {
   attachmentKind,
   embedJson,
   extensionFor,
+  durationBand,
   formatDuration,
   parseShotName,
   safeFileName,
@@ -18,6 +19,19 @@ describe('formatDuration', () => {
     assert.equal(formatDuration(12400), '12s');
     assert.equal(formatDuration(65000), '1m 05s');
     assert.equal(formatDuration(Number.NaN), '0ms');
+  });
+});
+
+describe('durationBand', () => {
+  it('splits a run at 1, 3, and 5 minutes', () => {
+    assert.equal(durationBand(0), 'under1');
+    assert.equal(durationBand(59_999), 'under1');
+    assert.equal(durationBand(60_000), '1to3');
+    assert.equal(durationBand(179_999), '1to3');
+    assert.equal(durationBand(180_000), '3to5');
+    assert.equal(durationBand(299_999), '3to5');
+    assert.equal(durationBand(300_000), 'over5');
+    assert.equal(durationBand(Number.NaN), 'under1');
   });
 });
 

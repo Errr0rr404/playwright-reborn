@@ -10,6 +10,8 @@ export type ShotMode = 'off' | 'failure' | 'last' | 'steps';
 
 export type Accent = 'green' | 'red' | 'blue' | 'amber' | 'violet';
 
+export type OverviewMode = 'chart' | 'timeline';
+
 export type StepDetail = 'user' | 'all';
 
 export type Counts = {
@@ -90,6 +92,7 @@ export type Report = {
   accent: Accent;
   showLogs: boolean;
   showFiles: boolean;
+  overview: OverviewMode;
   summary: string;
   startTime: string;
   duration: number;

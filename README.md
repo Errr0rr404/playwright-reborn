@@ -34,6 +34,8 @@ From this repo, point at the built file instead of the package name:
 
 `showLogs` and `showFiles` are `true` or `false`. Both default to `true`. Set either to `false` to leave that page out of the report.
 
+`overview` is `chart` or `timeline`. The default is `chart`. Chart counts how many tests finished under 1 minute, from 1 to 3 minutes, from 3 to 5 minutes, and over 5 minutes. Timeline lists every test by name. Buttons on the report switch that view for the open page only.
+
 `screenshots` is `off`, `failure`, `last`, or `steps`. The default is `failure`.
 
 `steps` is `user` or `all`. `user` keeps the steps you wrote and the expectations, and leaves Playwright's own API calls out of the file. `all` keeps those calls too.
@@ -42,8 +44,8 @@ Each run replaces `marquee-report/` and writes `index.html` plus screenshots, vi
 
 The report has five tabs.
 
-- Overview is the outcome, the total time, the counts, the duration strip, and the longest tests.
-- Tests is the list and one test. That test has Steps, Error, Logs, and Screenshots.
+- Overview is the company name, the total time, the counts, and a duration chart. Chart and Timeline switch that section. Timeline lists every test by name.
+- Tests is the list and one test. That test has Steps, Error, Logs, and Screenshots. Order can group the list by file, or sort it slowest, fastest, or by start time.
 - Screenshots is the gallery. Filter it to every step, the last failing step, or the last step of a passing attempt.
 - Logs is output from the whole run.
 - Files is traces, video, and anything that is not a picture.

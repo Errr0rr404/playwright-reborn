@@ -81,6 +81,16 @@ export function parseShotName(name: string): { name: string; role?: 'step' | 'la
   return { name: name || 'file' };
 }
 
+export type DurationBand = 'under1' | '1to3' | '3to5' | 'over5';
+
+export function durationBand(ms: number): DurationBand {
+  if (!Number.isFinite(ms) || ms < 0) ms = 0;
+  if (ms < 60_000) return 'under1';
+  if (ms < 180_000) return '1to3';
+  if (ms < 300_000) return '3to5';
+  return 'over5';
+}
+
 export function safeFileName(name: string, index: number, ext: string): string {
   const cleanExt = /^\.[a-z0-9]{1,8}$/i.test(ext) ? ext.toLowerCase() : '';
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'file';
