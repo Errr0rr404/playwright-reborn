@@ -1,4 +1,4 @@
-# Marquee
+# Finale
 
 A Playwright reporter. It watches the run, then writes one HTML file you can open or archive.
 
@@ -10,8 +10,8 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   reporter: [
     ['list'],
-    ['playwright-marquee', {
-      outputFolder: 'marquee-report',
+    ['playwright-finale', {
+      outputFolder: 'finale-report',
       open: 'on-failure',
       screenshots: 'failure',
       steps: 'user',
@@ -23,7 +23,7 @@ export default defineConfig({
 From this repo, point at the built file instead of the package name:
 
 ```ts
-['./dist/index.js', { outputFolder: 'marquee-report', open: 'on-failure', screenshots: 'steps' }]
+['./dist/index.js', { outputFolder: 'finale-report', open: 'on-failure', screenshots: 'steps' }]
 ```
 
 `open` is `always`, `never`, or `on-failure`. The default is `on-failure`.
@@ -40,7 +40,7 @@ From this repo, point at the built file instead of the package name:
 
 `steps` is `user` or `all`. `user` keeps the steps you wrote and the expectations, and leaves Playwright's own API calls out of the file. `all` keeps those calls too.
 
-Each run replaces `marquee-report/` and writes `index.html` plus screenshots, video, and traces. Open the HTML file directly. It does not need a server. On a sharded run, an unset folder becomes `marquee-report-shard-1` and so on.
+Each run replaces `finale-report/` and writes `index.html` plus screenshots, video, and traces. Open the HTML file directly. It does not need a server. On a sharded run, an unset folder becomes `finale-report-shard-1` and so on.
 
 The report has five tabs.
 
@@ -57,7 +57,7 @@ The report has five tabs.
 The reporter cannot photograph the page. Import the fixture in the tests that should capture shots:
 
 ```ts
-import { test, expect, step } from 'playwright-marquee/fixture';
+import { test, expect, step } from 'playwright-finale/fixture';
 
 await step('read the receipt', async () => {
   await expect(page.locator('#order')).toHaveText('1842');
@@ -78,7 +78,7 @@ npx playwright install chromium
 npm run demo
 ```
 
-`npm run demo` exits with code 1 because the receipt test fails. The report is `marquee-report/index.html`.
+`npm run demo` exits with code 1 because the receipt test fails. The report is `finale-report/index.html`.
 
 Geist and JetBrains Mono are included under the SIL Open Font License. The license files are copied into each report's `assets/fonts/` folder.
 

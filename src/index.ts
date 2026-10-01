@@ -2,26 +2,26 @@ import path from 'node:path';
 import type { FullConfig, FullResult, Reporter, Suite, TestError } from '@playwright/test/reporter';
 import type { ReportError, RunStatus } from './model';
 import { openReport } from './open';
-import { parseOptions, type MarqueeOptions } from './options';
+import { parseOptions, type FinaleOptions } from './options';
 import { resolveOutputFolder } from './paths';
 import { writeReport } from './render';
 import { buildReport } from './serialize';
 import { capText, stripAnsi } from './format';
 
-class MarqueeReporter implements Reporter {
+class FinaleReporter implements Reporter {
   private readonly parsed: ReturnType<typeof parseOptions>;
   private suite: Suite | undefined;
   private config: FullConfig | undefined;
   private readonly errors: ReportError[] = [];
 
-  constructor(options: MarqueeOptions = {}) {
+  constructor(options: FinaleOptions = {}) {
     this.parsed = parseOptions(options);
   }
 
   onBegin(config: FullConfig, suite: Suite): void {
     this.config = config;
     this.suite = suite;
-    process.env.MARQUEE_SCREENSHOTS = this.parsed.screenshots;
+    process.env.FINALE_SCREENSHOTS = this.parsed.screenshots;
   }
 
   onError(error: TestError): void {
@@ -40,7 +40,7 @@ class MarqueeReporter implements Reporter {
       await this.finish(result);
     } catch (error) {
       const message = error instanceof Error ? error.stack || error.message : String(error);
-      process.stderr.write(`\nMarquee reporter failed.\n${message}\n`);
+      process.stderr.write(`\nFinale reporter failed.\n${message}\n`);
       throw error;
     }
   }
@@ -81,7 +81,7 @@ class MarqueeReporter implements Reporter {
       overview: this.parsed.overview,
     });
     const indexPath = await writeReport(outputDir, report, files, path.join(__dirname, 'ui'));
-    process.stdout.write(`\nMarquee report: ${indexPath}\n`);
+    process.stdout.write(`\nFinale report: ${indexPath}\n`);
     const failed = status !== 'passed';
     if (this.parsed.open === 'always' || (this.parsed.open === 'on-failure' && failed)) {
       openReport(indexPath);
@@ -89,5 +89,5 @@ class MarqueeReporter implements Reporter {
   }
 }
 
-export default MarqueeReporter;
-export type { MarqueeOptions, MarqueeOpen } from './options';
+export default FinaleReporter;
+export type { FinaleOptions, FinaleOpen } from './options';

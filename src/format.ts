@@ -72,12 +72,12 @@ export function attachmentKind(name: string, contentType: string): 'image' | 'vi
 }
 
 export function parseShotName(name: string): { name: string; role?: 'step' | 'last' | 'failure'; stepTitle?: string } {
-  if (name.startsWith('marquee:step:')) {
-    const stepTitle = name.slice('marquee:step:'.length).trim() || 'Step';
+  if (name.startsWith('finale:step:')) {
+    const stepTitle = name.slice('finale:step:'.length).trim() || 'Step';
     return { name: stepTitle, role: 'step', stepTitle };
   }
-  if (name === 'marquee:failure') return { name: 'Failure', role: 'failure' };
-  if (name === 'marquee:last') return { name: 'Last step', role: 'last' };
+  if (name === 'finale:failure') return { name: 'Failure', role: 'failure' };
+  if (name === 'finale:last') return { name: 'Last step', role: 'last' };
   return { name: name || 'file' };
 }
 

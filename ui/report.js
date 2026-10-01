@@ -1,7 +1,7 @@
 (function () {
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var app = document.getElementById('app');
-  var raw = document.getElementById('marquee-data');
+  var raw = document.getElementById('finale-data');
   var data;
   try {
     data = JSON.parse((raw && raw.textContent) || '');

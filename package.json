@@ -1,5 +1,5 @@
 {
-  "name": "playwright-marquee",
+  "name": "playwright-finale",
   "version": "0.1.0",
   "description": "A Playwright reporter that writes a self-contained HTML report when the run finishes.",
   "main": "./dist/index.js",
@@ -31,11 +31,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Errr0rr404/playwright-marquee.git"
+    "url": "git+https://github.com/Errr0rr404/playwright-finale.git"
   },
-  "homepage": "https://github.com/Errr0rr404/playwright-marquee#readme",
+  "homepage": "https://github.com/Errr0rr404/playwright-finale#readme",
   "bugs": {
-    "url": "https://github.com/Errr0rr404/playwright-marquee/issues"
+    "url": "https://github.com/Errr0rr404/playwright-finale/issues"
   },
   "engines": {
     "node": ">=18"

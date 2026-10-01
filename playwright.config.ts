@@ -7,7 +7,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['./dist/index.js', {
-      outputFolder: 'marquee-report',
+      outputFolder: 'finale-report',
       open: 'never',
       screenshots: 'steps',
       company: 'Sandata',

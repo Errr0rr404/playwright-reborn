@@ -3,9 +3,9 @@ import { describe, it } from 'node:test';
 import { parseOptions } from './options';
 
 describe('parseOptions', () => {
-  it('defaults to a marquee-report folder that opens on failure', () => {
+  it('defaults to a finale-report folder that opens on failure', () => {
     assert.deepEqual(parseOptions(), {
-      outputFolder: 'marquee-report',
+      outputFolder: 'finale-report',
       outputExplicit: false,
       open: 'on-failure',
       screenshots: 'failure',

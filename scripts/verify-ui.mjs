@@ -5,11 +5,11 @@ import { pathToFileURL } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const root = process.cwd();
-const htmlPath = path.join(root, 'marquee-report', 'index.html');
-assert.equal(fs.existsSync(htmlPath), true, 'marquee-report/index.html was not written');
+const htmlPath = path.join(root, 'finale-report', 'index.html');
+assert.equal(fs.existsSync(htmlPath), true, 'finale-report/index.html was not written');
 
 const html = fs.readFileSync(htmlPath, 'utf8');
-const match = html.match(/<script id="marquee-data" type="application\/json">([\s\S]*?)<\/script>/);
+const match = html.match(/<script id="finale-data" type="application\/json">([\s\S]*?)<\/script>/);
 assert.ok(match, 'report data was not embedded');
 const data = JSON.parse(match[1]);
 assert.equal(data.status, 'failed');
@@ -63,7 +63,7 @@ assert.equal(await page.locator('#panel-tests').isHidden(), true);
 assert.equal(await page.locator('#gallery img').count(), 0);
 const strip = await page.locator('#strip').elementHandle();
 assert.equal(await page.locator('#now').count(), 0);
-await page.screenshot({ path: '/tmp/marquee-landing.png', fullPage: true });
+await page.screenshot({ path: '/tmp/finale-landing.png', fullPage: true });
 
 await page.locator('#duration [data-band="under1"]').click();
 const longest = data.tests.slice().sort((a, b) => (b.duration || 0) - (a.duration || 0) || a.title.localeCompare(b.title))[0];
@@ -77,7 +77,7 @@ await page.getByRole('button', { name: 'Grouped', exact: true }).click();
 await page.getByText('1842', { exact: false }).first().waitFor();
 await page.getByRole('button', { name: 'Slowest', exact: true }).click();
 assert.equal(await page.locator('#tests .row .row-title').first().innerText(), longest.title);
-await page.screenshot({ path: '/tmp/marquee-tests.png', fullPage: true });
+await page.screenshot({ path: '/tmp/finale-tests.png', fullPage: true });
 
 await page.getByRole('tab', { name: 'Screenshots' }).click();
 await page.locator('#gallery img').first().waitFor();
@@ -91,7 +91,7 @@ await page.locator('dialog img').waitFor();
 await page.keyboard.press('Escape');
 await page.getByRole('button', { name: 'Open test' }).first().click();
 await page.locator('#detail').waitFor();
-await page.screenshot({ path: '/tmp/marquee-shots.png', fullPage: false });
+await page.screenshot({ path: '/tmp/finale-shots.png', fullPage: false });
 
 await page.getByRole('tab', { name: 'Logs' }).click();
 await page.getByText('order text', { exact: false }).first().waitFor();
@@ -114,8 +114,8 @@ const overflow = await page.evaluate(() => ({
   client: document.documentElement.clientWidth,
 }));
 assert.ok(overflow.scroll <= overflow.client + 1, `page overflows by ${overflow.scroll - overflow.client}px`);
-await page.screenshot({ path: '/tmp/marquee-mobile.png', fullPage: true });
+await page.screenshot({ path: '/tmp/finale-mobile.png', fullPage: true });
 
 assert.deepEqual(errors, []);
 await browser.close();
-console.log('Marquee report verified');
+console.log('Finale report verified');

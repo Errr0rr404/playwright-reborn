@@ -19,10 +19,10 @@ export const test = base.extend({
     activeInfo = testInfo;
     try {
       await use(page);
-      const mode = process.env.MARQUEE_SCREENSHOTS || 'failure';
+      const mode = process.env.FINALE_SCREENSHOTS || 'failure';
       const failed = testInfo.status === 'failed' || testInfo.status === 'timedOut';
-      if (mode === 'last' || (mode === 'steps' && !failed)) await shot('marquee:last');
-      if ((mode === 'failure' || mode === 'steps') && failed) await shot('marquee:failure');
+      if (mode === 'last' || (mode === 'steps' && !failed)) await shot('finale:last');
+      if ((mode === 'failure' || mode === 'steps') && failed) await shot('finale:failure');
     } finally {
       activePage = undefined;
       activeInfo = undefined;
@@ -37,9 +37,9 @@ export async function step(title: string, body: () => Promise<void>): Promise<vo
     try {
       await body();
     } catch (error) {
-      if (process.env.MARQUEE_SCREENSHOTS === 'steps') await shot(`marquee:step:${title}`);
+      if (process.env.FINALE_SCREENSHOTS === 'steps') await shot(`finale:step:${title}`);
       throw error;
     }
-    if (process.env.MARQUEE_SCREENSHOTS === 'steps') await shot(`marquee:step:${title}`);
+    if (process.env.FINALE_SCREENSHOTS === 'steps') await shot(`finale:step:${title}`);
   });
 }

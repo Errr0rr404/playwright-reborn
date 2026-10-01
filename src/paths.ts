@@ -10,29 +10,29 @@ export function relativePosix(rootDir: string, file: string): string {
 }
 
 export function resolveOutputFolder(rootDir: string, outputFolder: string): string {
-  if (!outputFolder.trim()) throw new Error('Marquee outputFolder must be a non-empty path.');
+  if (!outputFolder.trim()) throw new Error('Finale outputFolder must be a non-empty path.');
   const root = path.resolve(rootDir);
   const resolved = path.resolve(root, outputFolder);
   if (resolved === path.parse(resolved).root) {
-    throw new Error('Marquee output folder must be a dedicated directory, not a drive root.');
+    throw new Error('Finale output folder must be a dedicated directory, not a drive root.');
   }
   if (path.isAbsolute(outputFolder)) {
     if (resolved === root) {
-      throw new Error('Marquee output folder must not be the project root.');
+      throw new Error('Finale output folder must not be the project root.');
     }
     return resolved;
   }
   const relative = path.relative(root, resolved);
   if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    throw new Error('Marquee output folder must be a subdirectory of the project.');
+    throw new Error('Finale output folder must be a subdirectory of the project.');
   }
   return resolved;
 }
 
-async function isMarqueeReport(dir: string): Promise<boolean> {
+async function isFinaleReport(dir: string): Promise<boolean> {
   try {
     const html = await fs.readFile(path.join(dir, 'index.html'), 'utf8');
-    return html.includes('id="marquee-data"');
+    return html.includes('id="finale-data"');
   } catch {
     return false;
   }
@@ -47,14 +47,14 @@ export async function prepareOutput(dir: string): Promise<void> {
     if (code !== 'ENOENT') throw error;
   }
   if (stat && !stat.isDirectory()) {
-    throw new Error(`Marquee output folder ${dir} exists and is not a directory.`);
+    throw new Error(`Finale output folder ${dir} exists and is not a directory.`);
   }
   if (stat) {
     const base = path.basename(dir);
-    const named = base === 'marquee-report' || base.startsWith('marquee-report-');
-    const ours = await isMarqueeReport(dir);
+    const named = base === 'finale-report' || base.startsWith('finale-report-');
+    const ours = await isFinaleReport(dir);
     if (!named && !ours) {
-      throw new Error(`Refusing to replace ${dir} because it is not a Marquee report folder.`);
+      throw new Error(`Refusing to replace ${dir} because it is not a Finale report folder.`);
     }
     await fs.rm(dir, { recursive: true, force: true });
   }

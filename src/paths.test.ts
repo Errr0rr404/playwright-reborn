@@ -6,14 +6,14 @@ import { describe, it } from 'node:test';
 import { prepareOutput, relativePosix, resolveOutputFolder } from './paths';
 
 describe('resolveOutputFolder', () => {
-  const root = path.join(os.tmpdir(), 'marquee-root');
+  const root = path.join(os.tmpdir(), 'finale-root');
 
   it('keeps a relative folder inside the project', () => {
-    assert.equal(resolveOutputFolder(root, 'marquee-report'), path.join(root, 'marquee-report'));
+    assert.equal(resolveOutputFolder(root, 'finale-report'), path.join(root, 'finale-report'));
   });
 
   it('allows an absolute folder', () => {
-    const absolute = path.join(os.tmpdir(), 'marquee-absolute');
+    const absolute = path.join(os.tmpdir(), 'finale-absolute');
     assert.equal(resolveOutputFolder(root, absolute), absolute);
   });
 
@@ -32,9 +32,9 @@ describe('relativePosix', () => {
 });
 
 describe('prepareOutput', () => {
-  it('replaces a previous Marquee folder and refuses an unrelated one', async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'marquee-out-'));
-    const report = path.join(dir, 'marquee-report');
+  it('replaces a previous Finale folder and refuses an unrelated one', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'finale-out-'));
+    const report = path.join(dir, 'finale-report');
     await fs.mkdir(report);
     await fs.writeFile(path.join(report, 'keep.txt'), 'old');
     await prepareOutput(report);

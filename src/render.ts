@@ -18,7 +18,7 @@ export function renderHtml(json: string): string {
 <div class="light"></div>
 <a class="skip" href="#tests">Skip to tests</a>
 <main class="page" id="app"></main>
-<script id="marquee-data" type="application/json">${json}</script>
+<script id="finale-data" type="application/json">${json}</script>
 <script src="assets/report.js"></script>
 </body>
 </html>
@@ -79,7 +79,7 @@ export async function writeReport(outputDir: string, report: Report, files: Pend
     await fs.access(stylesheet);
     await fs.access(script);
   } catch {
-    throw new Error('Marquee UI assets are missing. Build the package before running tests.');
+    throw new Error('Finale UI assets are missing. Build the package before running tests.');
   }
 
   await prepareOutput(outputDir);
