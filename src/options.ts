@@ -68,7 +68,7 @@ export function parseOptions(options: RebornOptions = {}): ParsedOptions {
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {
     throw new Error('Reborn options must be an object.');
   }
-  const open = options.open ?? 'on-failure';
+  const open = options.open ?? (process.env.CI ? 'never' : 'on-failure');
   if (!OPENS.has(open)) {
     throw new Error('Reborn open must be "always", "never", or "on-failure".');
   }
@@ -91,7 +91,8 @@ export function parseOptions(options: RebornOptions = {}): ParsedOptions {
   const showCredit = flag(options.showCredit, 'showCredit', false);
   const showPlaywrightVersion = flag(options.showPlaywrightVersion, 'showPlaywrightVersion', false);
   const showProjects = flag(options.showProjects, 'showProjects', false);
-  const showProjectFilter = showProjects && flag(options.showProjectFilter, 'showProjectFilter', false);
+  const projectFilter = flag(options.showProjectFilter, 'showProjectFilter', false);
+  const showProjectFilter = showProjects && projectFilter;
   const commitShort = flag(options.commitShort, 'commitShort', true);
   const overview = options.overview ?? 'chart';
   if (!OVERVIEWS.has(overview)) {
@@ -107,7 +108,7 @@ export function parseOptions(options: RebornOptions = {}): ParsedOptions {
     throw new Error('Reborn outputFolder must be a non-empty path.');
   }
   const reportFileName = options.reportFileName ?? 'index.html';
-  if (!/^[A-Za-z0-9._-]+\.html$/.test(reportFileName)) {
+  if (typeof reportFileName !== 'string' || !/^[A-Za-z0-9._-]+\.html$/.test(reportFileName)) {
     throw new Error('Reborn reportFileName must be a single .html file name.');
   }
   return {

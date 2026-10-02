@@ -2,9 +2,9 @@ import type { Counts, DisplayStatus, RunStatus } from './model';
 
 export function displayStatus(pwOutcome: string, status: string): DisplayStatus {
   if (pwOutcome === 'flaky') return 'flaky';
+  if (status === 'interrupted') return 'interrupted';
   if (pwOutcome === 'skipped' || status === 'skipped') return 'skipped';
   if (status === 'timedOut') return 'timedOut';
-  if (status === 'interrupted') return 'interrupted';
   if (pwOutcome === 'unexpected') return 'failed';
   if (status === 'failed') return 'passed';
   return 'passed';
@@ -49,7 +49,7 @@ export function summaryLine(counts: Counts): string {
     return counts.passed === 1 ? '1 passed.' : `${counts.passed} passed.`;
   }
   if (problems.length === 0) {
-    return `${counts.passed} passed, ${counts.skipped} skipped. ${counts.total} ran.`;
+    return `${counts.passed} passed, ${counts.skipped} skipped. ${counts.total} tests.`;
   }
-  return `${problems.join(', ')}. ${counts.total} ran.`;
+  return `${problems.join(', ')}. ${counts.total} tests.`;
 }

@@ -9,6 +9,7 @@ import {
   parseShotName,
   safeFileName,
   stripAnsi,
+  joinChunks,
 } from './format';
 
 describe('formatDuration', () => {
@@ -46,6 +47,16 @@ describe('embedJson', () => {
 describe('stripAnsi', () => {
   it('removes color codes', () => {
     assert.equal(stripAnsi('\u001b[31mfailed\u001b[0m'), 'failed');
+  });
+  it('removes terminal links and cursor controls', () => {
+    assert.equal(stripAnsi('\u001b[2K\u001b]8;;https://example.com\u0007link\u001b]8;;\u0007'), 'link');
+  });
+});
+
+describe('joinChunks', () => {
+  it('decodes UTF-8 split across output buffers', () => {
+    const text = Buffer.from('price € 😀');
+    assert.equal(joinChunks([text.subarray(0, 7), text.subarray(7, 11), text.subarray(11)]), 'price € 😀');
   });
 });
 

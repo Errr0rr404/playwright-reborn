@@ -17,20 +17,22 @@
   var TABS = ['overview', 'tests', 'screenshots'];
   if (data.showLogs !== false) TABS.push('logs');
   if (data.showFiles !== false) TABS.push('files');
+  var testIndex = new Map(data.tests.map(function (test) { return [test.id, test]; }));
   var route = readRoute();
   var state = {
     tab: route.tab,
     filter: 'all',
     query: '',
-    selectedId: route.id || initialFailure(),
+    selectedId: testIndex.has(route.id) ? route.id : initialFailure(),
     attempt: 0,
     showApi: false,
     testPane: 'steps',
     listLimit: 200,
+    timelineLimit: 200,
     shotFilter: 'all',
     logQuery: '',
-    tag: 'all',
-    projectFilter: 'all',
+    tag: null,
+    projectFilter: null,
     overview: data.overview === 'timeline' ? 'timeline' : 'chart',
     order: 'grouped',
     band: 'all',
@@ -49,7 +51,7 @@
     '<div class="shell">',
     '<aside class="rail">',
     '<div class="tabbar" role="tablist" aria-label="Report">',
-    '<span class="tab-glow" id="tab-glow"></span>',
+
     TABS.map(function (id) {
       return tabButton(id, id.charAt(0).toUpperCase() + id.slice(1));
     }).join(''),
@@ -93,6 +95,7 @@
     var canvas = document.querySelector('.atmosphere .bands');
     if (!canvas || !canvas.getContext) return;
     var ctx = canvas.getContext('2d');
+    if (!ctx) return;
     var ratio = 1;
     var columns = [];
     var count = 22;
@@ -119,9 +122,9 @@
       var t = reduce ? 8 : now / 1000;
       ctx.clearRect(0, 0, w, h);
       var wash = ctx.createLinearGradient(0, 0, 0, h);
-      wash.addColorStop(0, '#123d24');
-      wash.addColorStop(0.42, '#0a2416');
-      wash.addColorStop(1, '#050806');
+      wash.addColorStop(0, 'rgba(' + rgb + ', 0.10)');
+      wash.addColorStop(0.42, '#080b0a');
+      wash.addColorStop(1, '#080808');
       ctx.fillStyle = wash;
       ctx.fillRect(0, 0, w, h);
       columns.forEach(function (column) {
@@ -139,11 +142,16 @@
         ctx.fillStyle = gradient;
         ctx.fillRect(x - spread, 0, spread * 2, h * 0.92);
       });
-      if (!reduce) requestAnimationFrame(draw);
+      if (!reduce && !document.hidden) curtainFrame = requestAnimationFrame(draw);
     }
+    var curtainFrame = 0;
     resize();
-    window.addEventListener('resize', resize);
-    requestAnimationFrame(function (now) {
+    window.addEventListener('resize', function () { resize(); if (reduce) draw(0); });
+    document.addEventListener('visibilitychange', function () {
+      cancelAnimationFrame(curtainFrame);
+      if (!document.hidden) curtainFrame = requestAnimationFrame(draw);
+    });
+    curtainFrame = requestAnimationFrame(function (now) {
       if (!canvas.width) resize();
       draw(now);
     });
@@ -152,13 +160,14 @@
   function watchHeader() {
     var rail = document.querySelector('.rail');
     if (!rail) return;
+    rail.addEventListener('focusin', function () { rail.classList.remove('is-hidden'); });
     var lastY = window.scrollY;
     window.addEventListener('scroll', function () {
       var y = window.scrollY;
       var down = y > lastY + 6;
       var up = y < lastY - 6;
       if (y < 24) rail.classList.remove('is-hidden');
-      else if (down) rail.classList.add('is-hidden');
+      else if (down && !rail.contains(document.activeElement)) rail.classList.add('is-hidden');
       else if (up) rail.classList.remove('is-hidden');
       lastY = y;
     }, { passive: true });
@@ -185,16 +194,17 @@
   }
 
   function tabButton(id, label) {
-    return '<button class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="false" aria-controls="panel-' + id + '">' + label + '</button>';
+    return '<button id="tab-' + id + '" class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="false" aria-controls="panel-' + id + '">' + label + '</button>';
   }
 
   function readRoute() {
-    var hash = '';
-    try { hash = decodeURIComponent(location.hash.slice(1)); } catch (error) { hash = ''; }
-    if (!hash || hash === 'overview') return { tab: 'overview' };
+    var hash = location.hash.slice(1);
+    try {
+      if (hash.indexOf('tests/') === 0) return { tab: 'tests', id: decodeURIComponent(hash.slice(6)) };
+      hash = decodeURIComponent(hash);
+    } catch (error) { return { tab: 'overview' }; }
     if (TABS.indexOf(hash) !== -1) return { tab: hash };
-    if (hash.indexOf('tests/') === 0) return { tab: 'tests', id: decodeURIComponent(hash.slice(6)) };
-    if (data.tests.some(function (test) { return test.id === hash; })) return { tab: 'tests', id: hash };
+    if (testIndex.has(hash)) return { tab: 'tests', id: hash };
     return { tab: 'overview' };
   }
 
@@ -208,11 +218,13 @@
     state.tab = tab;
     document.querySelectorAll('[role="tab"]').forEach(function (button) {
       button.setAttribute('aria-selected', button.dataset.tab === tab ? 'true' : 'false');
+      button.tabIndex = button.dataset.tab === tab ? 0 : -1;
     });
     TABS.forEach(function (name) {
       var panel = document.getElementById('panel-' + name);
       var on = name === tab;
       panel.hidden = !on;
+      panel.setAttribute('aria-labelledby', 'tab-' + name);
       panel.classList.toggle('panel', true);
       if (on && !quiet && !reduce) {
         panel.classList.remove('panel-enter');
@@ -224,25 +236,18 @@
     if (tab === 'screenshots') ensureShots();
     if (tab === 'logs') ensureLogs();
     if (tab === 'files') ensureFiles();
-    writeHash();
-    placeTabGlow();
+    writeHash(!quiet);
+
   }
 
-  function writeHash() {
+  function writeHash(push) {
     var next = state.tab === 'overview' ? 'overview' : state.tab;
     if (state.tab === 'tests' && state.selectedId) next = 'tests/' + encodeURIComponent(state.selectedId);
-    if (window.history && history.replaceState) history.replaceState(null, '', '#' + next);
-  }
-
-  function placeTabGlow() {
-    var bar = document.querySelector('.tabbar');
-    var glow = document.getElementById('tab-glow');
-    var active = document.querySelector('.tab[aria-selected="true"]');
-    if (!bar || !glow || !active) return;
-    var barBox = bar.getBoundingClientRect();
-    var box = active.getBoundingClientRect();
-    glow.style.width = box.width + 'px';
-    glow.style.transform = 'translateX(' + (box.left - barBox.left - 4) + 'px)';
+    if (location.hash === '#' + next) return;
+    if (window.history && history.replaceState) {
+      var url = location.protocol === 'about:' ? location.href.split('#')[0] + '#' + next : '#' + next;
+      try { history[push ? 'pushState' : 'replaceState'](null, '', url); } catch (error) { /* Some artifact viewers block history updates. */ }
+    }
   }
 
   function paintOverview() {
@@ -250,7 +255,7 @@
     host.innerHTML = [
       '<header class="hero">',
       '<div><h1 class="word" id="word"></h1><p class="product" id="product"></p><p class="summary" id="summary"></p></div>',
-      '<p class="time" id="time"></p>',
+      '<p class="run-state" id="run-state"></p>',
       '</header>',
       '<div id="errors"></div>',
       '<dl class="info" id="info"></dl>',
@@ -278,14 +283,15 @@
     if (subtitle) product.textContent = subtitle;
     else product.hidden = true;
     document.getElementById('summary').textContent = data.summary || '';
-    countUp(document.getElementById('time'), data.duration || 0, formatDuration);
+    var runState = document.getElementById('run-state');
+    runState.dataset.status = data.status;
+    runState.textContent = { passed: 'Run passed', failed: 'Run failed', timedout: 'Run timed out', interrupted: 'Run interrupted' }[data.status] || 'Run finished';
     paintErrors();
     paintInfo();
     paintCounts(document.getElementById('legend'), false);
     paintDuration();
     paintStrip();
     applyOverview();
-    showNow(state.selectedId);
   }
 
   function paintInfo() {
@@ -479,7 +485,7 @@
   function paintCounts(host, withFind) {
     var counts = data.counts || {};
     var filters = [
-      ['all', 'ran', counts.total || 0],
+      ['all', 'tests', counts.total || 0],
       ['passed', 'passed', counts.passed || 0],
       ['failed', 'failed', counts.failed || 0],
       ['flaky', 'flaky', counts.flaky || 0],
@@ -517,7 +523,7 @@
   }
 
   function syncPressed() {
-    document.querySelectorAll('.count').forEach(function (button) {
+    document.querySelectorAll('.count[data-status]').forEach(function (button) {
       button.setAttribute('aria-pressed', button.dataset.status === state.filter ? 'true' : 'false');
     });
   }
@@ -538,7 +544,7 @@
   function paintStrip() {
     var strip = document.getElementById('strip');
     if (!data.tests.length) {
-      fill(strip, []);
+      fill(strip, [el('p', { class: 'empty' }, ['No tests ran.'])]);
       return;
     }
     var max = data.tests.reduce(function (hi, test) { return Math.max(hi, test.duration || 0); }, 1);
@@ -547,7 +553,7 @@
     });
     strip.className = 'run-list';
     strip.style.height = '';
-    fill(strip, ordered.map(function (test) {
+    var nodes = ordered.slice(0, state.timelineLimit).map(function (test) {
       var fillBar = el('span', { class: 'run-fill', 'data-status': test.status });
       fillBar.style.width = Math.max(2, Math.round(((test.duration || 0) / max) * 100)) + '%';
       return el('button', {
@@ -562,51 +568,10 @@
         el('span', { class: 'run-track' }, [fillBar]),
         el('span', { class: 'run-time' }, [formatDuration(test.duration)]),
       ]);
-    }));
+    });
+    if (ordered.length > state.timelineLimit) nodes.push(el('button', { class: 'more', type: 'button', id: 'show-more-timeline' }, ['Show more tests']));
+    fill(strip, nodes);
     markStrip();
-  }
-
-  function paintCanvasStrip(host) {
-    var canvas = el('canvas', { class: 'strip-canvas', 'aria-label': 'Tests by duration' });
-    fill(host, [canvas]);
-    var hits = [];
-    function draw() {
-      var width = host.clientWidth || 600;
-      var height = 52;
-      var ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(width * ratio);
-      canvas.height = Math.floor(height * ratio);
-      canvas.style.width = width + 'px';
-      canvas.style.height = height + 'px';
-      var ctx = canvas.getContext('2d');
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      ctx.clearRect(0, 0, width, height);
-      var total = data.tests.reduce(function (sum, test) { return sum + Math.max(test.duration || 0, 1); }, 0);
-      var x = 0;
-      hits = [];
-      data.tests.forEach(function (test) {
-        var w = Math.max(2, (Math.max(test.duration || 0, 1) / total) * width);
-        ctx.fillStyle = canvasColor(test.status);
-        ctx.fillRect(x, 8, Math.max(1, w - 2), 36);
-        hits.push({ x: x, w: w, id: test.id });
-        x += w;
-      });
-    }
-    draw();
-    window.addEventListener('resize', draw);
-    canvas.addEventListener('mousemove', function (event) {
-      var rect = canvas.getBoundingClientRect();
-      var x = event.clientX - rect.left;
-      var hit = hits.find(function (item) { return x >= item.x && x < item.x + item.w; });
-      if (hit) showNow(hit.id);
-    });
-    canvas.addEventListener('mouseleave', function () { showNow(state.selectedId); });
-    canvas.addEventListener('click', function (event) {
-      var rect = canvas.getBoundingClientRect();
-      var x = event.clientX - rect.left;
-      var hit = hits.find(function (item) { return x >= item.x && x < item.x + item.w; });
-      if (hit) choose(hit.id, true);
-    });
   }
 
   function canvasColor(status) {
@@ -617,7 +582,7 @@
   }
 
   function markStrip() {
-    var visible = {};
+    var visible = Object.create(null);
     filteredTests().forEach(function (test) { visible[test.id] = true; });
     document.querySelectorAll('.run-row').forEach(function (segment) {
       segment.classList.toggle('is-dim', !visible[segment.dataset.id]);
@@ -637,7 +602,7 @@
   }
 
   function uniqueValues(pick) {
-    var seen = {};
+    var seen = Object.create(null);
     data.tests.forEach(function (test) {
       pick(test).forEach(function (value) {
         if (value) seen[value] = true;
@@ -654,12 +619,12 @@
     var nodes = [];
     if (tags.length) {
       nodes.push(el('span', { class: 'order-label' }, ['Tags']));
-      nodes.push(chip('tag-btn', 'all', 'All', state.tag));
+      nodes.push(chip('tag-btn', '', 'All', state.tag || ''));
       tags.forEach(function (tag) { nodes.push(chip('tag-btn', tag, tag, state.tag)); });
     }
     if (data.showProjectFilter === true && projects.length > 1) {
       nodes.push(el('span', { class: 'order-label' }, ['Project']));
-      nodes.push(chip('project-btn', 'all', 'All', state.projectFilter));
+      nodes.push(chip('project-btn', '', 'All', state.projectFilter || ''));
       projects.forEach(function (project) { nodes.push(chip('project-btn', project, project, state.projectFilter)); });
     }
     host.hidden = nodes.length === 0;
@@ -711,7 +676,7 @@
     if (built.tests) return;
     built.tests = true;
     var host = document.getElementById('panel-tests');
-    host.innerHTML = '<div class="legend" id="test-tools"></div><div class="tags" id="tags"></div><div class="order" id="order"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
+    host.innerHTML = '<h2 class="visually-hidden">Tests</h2><div class="legend" id="test-tools"></div><div class="tags" id="tags"></div><div class="order" id="order"></div><div class="list-summary" id="list-summary"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
     paintCounts(document.getElementById('test-tools'), true);
     paintTags();
     paintOrder();
@@ -724,8 +689,13 @@
     var host = document.getElementById('tests');
     if (!host) return;
     var tests = filteredTests();
+    var summary = document.getElementById('list-summary');
+    if (summary) fill(summary, [
+      el('span', { role: 'status', 'aria-live': 'polite' }, [tests.length + ' of ' + data.tests.length + ' tests']),
+      hasFilters() ? el('button', { type: 'button', class: 'reset-filters' }, ['Clear filters']) : null,
+    ]);
     if (!tests.length) {
-      fill(host, [el('p', { class: 'empty' }, [data.tests.length ? 'No tests match.' : 'No tests ran.'])]);
+      fill(host, [el('p', { class: 'empty' }, [data.tests.length ? 'No tests match. Clear filters or try another search.' : 'No tests ran.'])]);
       return;
     }
     if (state.order !== 'grouped') {
@@ -733,20 +703,20 @@
       var shown = sorted.slice(0, state.listLimit);
       var flat = shown.map(function (test) { return rowButton(test, true); });
       if (shown.length < sorted.length) {
-        flat.push(el('button', { class: 'more', type: 'button', id: 'show-rest' }, ['Show the rest']));
+        flat.push(el('button', { class: 'more', type: 'button', id: 'show-rest' }, ['Show more tests']));
       }
       fill(host, flat);
       return;
     }
     var groups = [];
-    var problemIds = {};
+    var problemIds = Object.create(null);
     var problems = tests.filter(isProblem);
     if (state.filter === 'all' && !state.query && problems.length && problems.length !== tests.length) {
       problems.forEach(function (test) { problemIds[test.id] = true; });
       groups.push({ name: 'Problems', tests: problems });
     }
     var byFile = [];
-    var index = {};
+    var index = Object.create(null);
     tests.forEach(function (test) {
       if (problemIds[test.id]) return;
       if (index[test.file] == null) {
@@ -771,7 +741,7 @@
       return el('div', { class: 'group' }, [el('p', { class: 'file-name' }, [group.name])].concat(rows));
     }).filter(Boolean);
     if (truncated) {
-      nodes.push(el('button', { class: 'more', type: 'button', id: 'show-rest' }, ['Show the rest']));
+      nodes.push(el('button', { class: 'more', type: 'button', id: 'show-rest' }, ['Show more tests']));
     }
     fill(host, nodes);
   }
@@ -805,7 +775,7 @@
       ['logs', 'Logs'],
       ['shots', 'Screenshots'],
     ];
-    var tabs = el('div', { class: 'subtabs', role: 'tablist' }, panes.map(function (pane) {
+    var tabs = el('div', { class: 'subtabs', role: 'group', 'aria-label': 'Test details' }, panes.map(function (pane) {
       return el('button', {
         class: 'subtab',
         type: 'button',
@@ -816,6 +786,7 @@
     var body = [headerBlock(test), tabs];
     if (test.attempts.length > 1) body.push(attemptTabs(test));
     if (attempt) body.push(paneBody(test, attempt));
+    else body.push(el('p', { class: 'empty block' }, ['This test did not run.']));
     fill(host, [el('div', { class: 'detail-body' }, body)]);
   }
 
@@ -831,7 +802,7 @@
     if (test.group && test.group.length) bits.push(el('p', { class: 'kicker' }, [test.group.join(' / ')]));
     bits.push(el('h2', null, [test.title]));
     var where = [el('span', null, [test.file + ':' + test.line])];
-    if (test.project) where.push(el('span', null, [test.project]));
+    if (data.showProjects === true && test.project) where.push(el('span', null, [test.project]));
     (test.tags || []).forEach(function (tag) { where.push(el('span', null, [tag])); });
     bits.push(el('p', { class: 'where' }, where));
     bits.push(el('p', { class: 'status-line' }, [
@@ -859,7 +830,8 @@
 
   function errorBlock(attempt) {
     if (!attempt.errors || !attempt.errors.length) return null;
-    var image = (attempt.attachments || []).find(function (item) { return item.kind === 'image' && safeSrc(item.path); });
+    var images = (attempt.attachments || []).filter(function (item) { return item.kind === 'image' && safeSrc(item.path); });
+    var image = images.find(function (item) { return item.role === 'failure'; }) || images[images.length - 1];
     var messages = attempt.errors.map(function (error) {
       var nodes = [el('pre', null, [error.message || 'The test failed.'])];
       if (error.location) nodes.push(el('p', { class: 'where-error' }, [error.location]));
@@ -949,8 +921,9 @@
           var src = safeSrc(file.path);
           var copy = el('div', { class: 'tile-copy' }, [
             el('p', { class: 'tile-title' }, [test.title]),
+            el('p', { class: 'tile-meta' }, ['Attempt ' + (index + 1) + ' · ' + attemptLabel(attempt.status)]),
             el('p', { class: 'tile-meta' }, [file.stepTitle || file.name || 'Screenshot']),
-            el('button', { class: 'open-test', type: 'button', 'data-id': test.id, 'data-attempt': String(index) }, ['Open test']),
+            el('button', { class: 'open-test', type: 'button', 'data-id': test.id, 'data-attempt': String(index), 'data-open-pane': 'shots' }, ['Open test']),
           ]);
           var tile = el('div', { class: 'tile', 'data-role': file.role || '', 'data-status': test.status }, [
             el('button', { class: 'shot', type: 'button', 'data-src': src, 'data-alt': file.name || test.title }, [
@@ -1014,7 +987,7 @@
         ];
         if (attempt.stdout) nodes.push(el('div', { class: 'well' }, [el('p', null, ['Output']), el('pre', null, [attempt.stdout])]));
         if (attempt.stderr) nodes.push(el('div', { class: 'well' }, [el('p', null, ['Error output']), el('pre', null, [attempt.stderr])]));
-        nodes.push(el('button', { class: 'open-test', type: 'button', 'data-id': test.id, 'data-attempt': String(index) }, ['Open test']));
+        nodes.push(el('button', { class: 'open-test', type: 'button', 'data-id': test.id, 'data-attempt': String(index), 'data-open-pane': 'logs' }, ['Open test']));
         var card = el('article', { class: 'log-card', 'data-blob': blob }, nodes);
         cards.push(card);
       });
@@ -1022,15 +995,21 @@
     fill(host, [
       el('h2', null, ['Logs']),
       el('input', { id: 'log-find', class: 'find', type: 'search', placeholder: 'Find in logs', 'aria-label': 'Find in logs' }),
-      el('div', { id: 'log-list' }, cards.length ? cards : [el('p', { class: 'empty' }, ['No logs in this run.'])]),
+      el('p', { class: 'empty', id: 'log-empty', hidden: cards.length > 0 }, ['No logs in this run.']),
+      el('div', { id: 'log-list' }, cards),
     ]);
   }
 
   function applyLogFilter() {
     var query = state.logQuery.trim().toLowerCase();
+    var visible = 0;
     document.querySelectorAll('.log-card').forEach(function (card) {
       card.hidden = Boolean(query) && card.dataset.blob.indexOf(query) === -1;
+      if (!card.hidden) visible += 1;
     });
+    var empty = document.getElementById('log-empty');
+    empty.hidden = visible > 0;
+    empty.textContent = query ? 'No logs match. Try another search.' : 'No logs in this run.';
   }
 
   function ensureFiles() {
@@ -1067,10 +1046,30 @@
   }
 
   function bind() {
-    window.addEventListener('resize', placeTabGlow);
+    window.addEventListener('hashchange', function () {
+      var next = readRoute();
+      if (next.tab === 'tests' && next.id && testById(next.id)) {
+        resetFilters();
+        state.selectedId = next.id;
+        state.attempt = failedAttempt(testById(next.id));
+        state.testPane = defaultPane(testById(next.id));
+        if (built.tests) { paintTags(); paintOrder(); paintList(); paintDetail(); syncPressed(); }
+      }
+      showTab(next.tab, true);
+    });
+    document.querySelector('.skip').addEventListener('click', function (event) {
+      event.preventDefault();
+      showTab('tests');
+      document.getElementById('find').focus();
+    });
     app.addEventListener('click', function (event) {
       var target = event.target instanceof Element ? event.target : null;
       if (!target) return;
+      if (target.closest('.reset-filters')) {
+        resetFilters(); keepSelectionInFilter(); paintTags(); paintOrder(); paintDuration(); paintList(); paintDetail(); syncPressed();
+        document.getElementById('find').focus();
+        return;
+      }
       var tab = target.closest('.tab');
       if (tab) {
         showTab(tab.dataset.tab);
@@ -1084,7 +1083,7 @@
       }
       var opener = target.closest('.open-test');
       if (opener) {
-        openTest(opener.dataset.id, Number(opener.dataset.attempt || 0));
+        openTest(opener.dataset.id, Number(opener.dataset.attempt || 0), opener.dataset.openPane);
         return;
       }
       var view = target.closest('.view');
@@ -1121,7 +1120,7 @@
       }
       var tag = target.closest('.tag-btn');
       if (tag) {
-        state.tag = tag.dataset.value || 'all';
+        state.tag = tag.dataset.value || null;
         state.listLimit = 200;
         keepSelectionInFilter();
         paintTags();
@@ -1131,7 +1130,7 @@
       }
       var projectButton = target.closest('.project-btn');
       if (projectButton) {
-        state.projectFilter = projectButton.dataset.value || 'all';
+        state.projectFilter = projectButton.dataset.value || null;
         state.listLimit = 200;
         keepSelectionInFilter();
         paintTags();
@@ -1159,7 +1158,6 @@
           paintList();
           paintDetail();
           markStrip();
-          showNow(state.selectedId);
         }
         return;
       }
@@ -1177,12 +1175,14 @@
       if (pane) {
         state.testPane = pane.dataset.pane || 'steps';
         paintDetail();
+        document.querySelector('.subtab[data-pane="' + state.testPane + '"]').focus();
         return;
       }
       var attempt = target.closest('.attempt');
       if (attempt) {
         state.attempt = Number(attempt.dataset.index || 0);
         paintDetail();
+        document.querySelector('.attempt[data-index="' + state.attempt + '"]').focus();
         return;
       }
       if (target.closest('#api-toggle')) {
@@ -1192,9 +1192,17 @@
         if (toggle) toggle.focus();
         return;
       }
+      if (target.closest('#show-more-timeline')) {
+        state.timelineLimit += 200; paintStrip();
+        var moreTimeline = document.getElementById('show-more-timeline');
+        if (moreTimeline) moreTimeline.focus();
+        return;
+      }
       if (target.closest('#show-rest')) {
-        state.listLimit = 100000;
+        state.listLimit += 200;
         paintList();
+        var more = document.getElementById('show-rest');
+        if (more) more.focus();
         return;
       }
       var shot = target.closest('.shot');
@@ -1213,7 +1221,6 @@
           paintList();
           paintDetail();
           markStrip();
-          showNow(state.selectedId);
         }, 80);
       }
       if (event.target.id === 'log-find') {
@@ -1222,21 +1229,12 @@
       }
     });
 
-    app.addEventListener('mouseover', function (event) {
-      var segment = event.target && event.target.closest ? event.target.closest('.run-row') : null;
-      if (segment) showNow(segment.dataset.id);
-    });
-    app.addEventListener('mouseout', function (event) {
-      var segment = event.target && event.target.closest ? event.target.closest('.run-row') : null;
-      if (!segment) return;
-      var next = event.relatedTarget && event.relatedTarget.closest ? event.relatedTarget.closest('.run-row') : null;
-      if (!next) showNow(state.selectedId);
-    });
-
     document.addEventListener('keydown', function (event) {
-      var typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+      if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || document.querySelector('dialog[open]')) return;
+      var typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target.isContentEditable;
       if (typing) {
         if (event.key === 'Escape') {
+          window.clearTimeout(findTimer);
           event.target.value = '';
           if (event.target.id === 'find') {
             state.query = '';
@@ -1244,7 +1242,6 @@
             paintList();
             paintDetail();
             markStrip();
-            showNow(state.selectedId);
           }
           if (event.target.id === 'log-find') {
             state.logQuery = '';
@@ -1254,7 +1251,8 @@
         return;
       }
       if (event.key >= '1' && event.key <= '5') {
-        showTab(TABS[Number(event.key) - 1]);
+        var destination = TABS[Number(event.key) - 1];
+        if (destination) showTab(destination);
         return;
       }
       if (event.key === '/') {
@@ -1276,7 +1274,7 @@
         if (next) next.focus();
         return;
       }
-      if (state.tab !== 'tests' || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
+      if (state.tab !== 'tests' || !event.target.closest || !event.target.closest('#tests') || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
       var rows = Array.prototype.slice.call(document.querySelectorAll('#tests .row'));
       if (!rows.length) return;
       event.preventDefault();
@@ -1291,21 +1289,15 @@
 
   function choose(id, resetFilter) {
     if (!id || !testById(id)) return;
-    if (resetFilter) {
-      state.filter = 'all';
-      state.query = '';
-      state.band = 'all';
-      state.tag = 'all';
-      state.projectFilter = 'all';
-      var find = document.getElementById('find');
-      if (find) find.value = '';
-    }
+    if (resetFilter) resetFilters();
     if (state.selectedId !== id) {
       var test = testById(id);
       state.selectedId = id;
       state.attempt = failedAttempt(test);
       state.testPane = defaultPane(test);
     }
+    var position = filteredTests().findIndex(function (test) { return test.id === id; });
+    state.listLimit = Math.max(state.listLimit, position + 1);
     showTab('tests');
     if (built.tests) {
       syncPressed();
@@ -1316,37 +1308,46 @@
       markStrip();
     }
     paintDuration();
-    showNow(state.selectedId);
     var row = document.querySelector('#tests .row[data-id="' + cssEscape(id) + '"]');
+    if (row) row.focus({ preventScroll: true });
     if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+  }
+
+  function hasFilters() {
+    return state.filter !== 'all' || state.query.trim() || state.band !== 'all' || state.tag !== null || state.projectFilter !== null;
+  }
+
+  function resetFilters() {
+    window.clearTimeout(findTimer);
+    state.filter = 'all'; state.query = ''; state.band = 'all'; state.tag = null; state.projectFilter = null;
+    state.listLimit = 200;
+    var find = document.getElementById('find');
+    if (find) find.value = '';
   }
 
   function keepSelectionInFilter() {
     var tests = filteredTests();
+    markStrip();
     if (tests.some(function (test) { return test.id === state.selectedId; })) return;
     var next = tests[0];
     if (!next) {
       state.selectedId = null;
+      writeHash();
       return;
     }
     state.selectedId = next.id;
     state.attempt = failedAttempt(next);
     state.testPane = defaultPane(next);
+    writeHash();
   }
 
-  function openTest(id, attempt) {
+  function openTest(id, attempt, pane) {
     var test = testById(id);
     if (!test) return;
-    state.filter = 'all';
-    state.query = '';
-    state.band = 'all';
-    state.tag = 'all';
-    state.projectFilter = 'all';
-    var find = document.getElementById('find');
-    if (find) find.value = '';
+    resetFilters();
     state.selectedId = id;
     state.attempt = attempt;
-    state.testPane = 'shots';
+    state.testPane = pane === 'logs' ? 'logs' : 'shots';
     showTab('tests');
     if (built.tests) {
       paintTags();
@@ -1355,43 +1356,30 @@
       paintDetail();
       markStrip();
     }
+    syncPressed();
     paintDuration();
+    document.getElementById('detail').scrollIntoView({ block: 'nearest' });
   }
 
   function openShot(src, alt) {
     var safe = safeSrc(src);
     if (!safe) return;
     var close = el('button', { class: 'close-shot', type: 'button' }, ['Close']);
-    var dialog = el('dialog', null, [close, el('img', { src: safe, alt: alt })]);
+    var returnFocus = document.activeElement;
+    var dialog = el('dialog', { 'aria-label': alt || 'Screenshot' }, [close, el('img', { src: safe, alt: alt })]);
     close.addEventListener('click', function () { dialog.close(); });
     dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
-    dialog.addEventListener('close', function () { dialog.remove(); });
+    dialog.addEventListener('close', function () { dialog.remove(); if (returnFocus && returnFocus.isConnected) returnFocus.focus(); });
     document.body.appendChild(dialog);
     dialog.showModal();
-  }
-
-  function showNow(id) {
-    var host = document.getElementById('now');
-    if (!host) return;
-    var test = id ? testById(id) : null;
-    if (!test) {
-      fill(host, [data.tests.length ? 'Hover a test, or click one.' : 'No tests ran.']);
-      return;
-    }
-    fill(host, [
-      el('span', { class: 'sw', 'data-status': test.status }, [statusLabel(test)]),
-      el('span', { class: 'name' }, [test.title]),
-      el('span', null, [formatDuration(test.duration)]),
-      el('span', { class: 'now-file' }, [test.file]),
-    ]);
   }
 
   function filteredTests() {
     var query = state.query.trim().toLowerCase();
     return data.tests.filter(function (test) {
       if (state.filter !== 'all' && test.status !== state.filter) return false;
-      if (state.tag !== 'all' && (test.tags || []).indexOf(state.tag) === -1) return false;
-      if (state.projectFilter !== 'all' && test.project !== state.projectFilter) return false;
+      if (state.tag !== null && (test.tags || []).indexOf(state.tag) === -1) return false;
+      if (state.projectFilter !== null && test.project !== state.projectFilter) return false;
       if (state.band !== 'all' && (test.status === 'skipped' || durationBand(test.duration) !== state.band)) return false;
       if (!query) return true;
       var blob = [test.title, test.file, test.project].concat(test.group || [], test.tags || []).join(' ').toLowerCase();
@@ -1405,7 +1393,7 @@
   }
 
   function testById(id) {
-    return data.tests.find(function (test) { return test.id === id; }) || null;
+    return testIndex.get(id) || null;
   }
 
   function failedAttempt(test) {
@@ -1419,7 +1407,7 @@
 
   function defaultPane(test) {
     if (!test) return 'steps';
-    if (test.status === 'failed' || test.status === 'timedOut' || test.status === 'flaky') return 'error';
+    if (isProblem(test)) return 'error';
     return 'steps';
   }
 

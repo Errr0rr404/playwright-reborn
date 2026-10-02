@@ -12,6 +12,7 @@ describe('displayStatus', () => {
     assert.equal(displayStatus('unexpected', 'interrupted'), 'interrupted');
     assert.equal(displayStatus('flaky', 'passed'), 'flaky');
     assert.equal(displayStatus('skipped', 'skipped'), 'skipped');
+    assert.equal(displayStatus('skipped', 'interrupted'), 'interrupted');
     assert.equal(isExpectedFailure('expected', 'failed'), true);
     assert.equal(isExpectedFailure('unexpected', 'failed'), false);
   });
@@ -26,11 +27,11 @@ describe('summaryLine', () => {
     assert.equal(summaryLine(countTests(['passed', 'passed'])), '2 passed.');
     assert.equal(
       summaryLine(countTests(['failed', 'flaky', 'passed'])),
-      '1 failed, 1 flaky. 3 ran.',
+      '1 failed, 1 flaky. 3 tests.',
     );
     assert.equal(
       summaryLine(countTests(['passed', 'skipped'])),
-      '1 passed, 1 skipped. 2 ran.',
+      '1 passed, 1 skipped. 2 tests.',
     );
   });
 });

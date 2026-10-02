@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chromium } from '@playwright/test';
+import { runUiChecks } from './ui-regressions.mjs';
 
 const root = process.cwd();
 const htmlPath = path.join(root, 'reborn-report', 'index.html');
@@ -18,7 +19,10 @@ assert.equal(html.includes('assets/report.css'), false);
 assert.equal(html.includes('<style>'), true);
 assert.equal(data.accent, 'green');
 assert.equal(data.version, 2);
-assert.ok(data.counts.failed >= 1 && data.counts.flaky >= 1 && data.counts.skipped >= 1 && data.counts.passed >= 1);
+assert.equal(data.counts.failed, 1);
+assert.equal(data.counts.flaky, 1);
+assert.equal(data.counts.skipped, 1);
+assert.equal(data.counts.passed, 7);
 assert.ok(data.tests.some((test) => (test.attempts || []).some((attempt) => (attempt.stdout || '').includes('total is $14'))));
 assert.ok(data.tests.some((test) => (test.attempts || []).some((attempt) => (attempt.stderr || '').includes('stock service slow'))));
 const flaky = data.tests.find((test) => test.status === 'flaky');
@@ -27,7 +31,10 @@ assert.ok(data.tests.some((test) => test.attempts.some((attempt) => attempt.atta
 assert.ok(data.tests.some((test) => test.attempts.some((attempt) => attempt.attachments.some((file) => file.role === 'failure'))));
 assert.equal(data.steps, 'user');
 
-const browser = await chromium.launch({ headless: true });
+const browser = process.env.REBORN_BROWSER_CDP_URL
+  ? await chromium.connectOverCDP(process.env.REBORN_BROWSER_CDP_URL)
+  : await chromium.launch({ headless: true, executablePath: process.env.REBORN_BROWSER_EXECUTABLE || undefined });
+try {
 const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
@@ -124,5 +131,7 @@ assert.ok(overflow.scroll <= overflow.client + 1, `page overflows by ${overflow.
 await page.screenshot({ path: '/tmp/reborn-mobile.png', fullPage: true });
 
 assert.deepEqual(errors, []);
-await browser.close();
+const regressions = await page.evaluate(runUiChecks, html);
+assert.deepEqual(regressions.filter(result => !result.passed), []);
+} finally { await browser.close(); }
 console.log('Reborn report verified');

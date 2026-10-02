@@ -3,11 +3,27 @@ import { describe, it } from 'node:test';
 import { parseOptions } from './options';
 
 describe('parseOptions', () => {
+  it('does not open a report automatically in CI and honors an explicit choice', () => {
+    const previous = process.env.CI;
+    process.env.CI = '1';
+    try {
+      assert.equal(parseOptions().open, 'never');
+      assert.equal(parseOptions({ open: 'always' }).open, 'always');
+    } finally {
+      if (previous === undefined) delete process.env.CI;
+      else process.env.CI = previous;
+    }
+  });
+
+  it('validates hidden project filter options', () => {
+    assert.throws(() => parseOptions({ showProjectFilter: 'yes' as unknown as boolean }), /showProjectFilter/);
+    assert.throws(() => parseOptions({ reportFileName: 123 as unknown as string }), /reportFileName/);
+  });
   it('defaults to a reborn-report folder that opens on failure', () => {
     assert.deepEqual(parseOptions(), {
       outputFolder: 'reborn-report',
       outputExplicit: false,
-      open: 'on-failure',
+      open: process.env.CI ? 'never' : 'on-failure',
       screenshots: 'failure',
       steps: 'user',
       company: '',

@@ -61,9 +61,9 @@ Pass any of these next to the reporter. Omitted settings use the default.
 | Setting | Default | Allowed |
 |---|---|---|
 | `company` | Project folder name | Any name. This is the large title. It does not change when a run fails. |
-| `accent` | `green` | `green`, `red`, `blue`, `amber`, `violet`. Colors the light field, failure marks, and links. |
-| `open` | `on-failure` | `always`, `never`, `on-failure`. When to open the HTML file after the run. Use `never` when `CI` is set. |
-| `outputFolder` | `reborn-report` | A folder path. Each run replaces that folder. If you leave this unset, a sharded run writes `reborn-report-shard-1` and so on. |
+| `accent` | `green` | `green`, `red`, `blue`, `amber`, `violet`. Colors the light field, selection, charts, and links. Failures stay coral and flaky results stay amber for consistent recognition. |
+| `open` | `on-failure`, or `never` in CI | `always`, `never`, `on-failure`. When to open the HTML file after the run. Use `never` when `CI` is set. |
+| `outputFolder` | `reborn-report` | A dedicated folder path. Each run replaces its previous report. Existing empty folders are accepted; unrelated non-empty folders and symbolic links are refused. If you leave this unset, a sharded run writes `reborn-report-shard-1` and so on. |
 | `reportFileName` | `index.html` | One `.html` file name, with no folders. Jenkins HTML Publisher can point at this file. |
 | `inline` | `true` | `true` or `false`. `true` writes one HTML file with the CSS, script, and fonts inside it, and embeds screenshots. Traces and other files stay as relative links in the report folder. |
 | `overview` | `chart` | `chart` or `timeline`. Which view the overview opens on. The buttons on the page can still switch it. |
@@ -76,7 +76,7 @@ Pass any of these next to the reporter. Omitted settings use the default.
 | `commitShort` | `true` | `true` shows the first 7 characters of the commit. `false` shows the full value. |
 | `ignoreTags` | `^@?HC2T-` | A pattern for tags to hide, or `false` to keep every tag. |
 | `screenshots` | `failure` | `off`, `failure`, `last`, or `steps`. When the fixture takes a picture. The reporter sets `REBORN_SCREENSHOTS` in `onBegin`. Do not set that variable yourself. The Screenshots page stays in the report either way. |
-| `steps` | `user` | `user` or `all`. `user` keeps the steps you wrote and the expectations, and leaves hooks and Playwright's own API calls out. `all` keeps those calls too. |
+| `steps` | `user` | `user` or `all`. `user` shows the steps a person would follow. It leaves expectations, `test.attach` calls, hooks, and Playwright's own API calls out. `all` keeps those calls too. |
 | `showLogs` | `true` | `true` or `false`. `false` leaves the Logs page out. |
 | `showFiles` | `true` | `true` or `false`. `false` leaves the Files page out. |
 | `suite` | empty | Suite name shown on the overview. |
@@ -94,17 +94,20 @@ The reporter cannot photograph the page. Import the fixture in the tests that sh
 ```ts
 import { test, expect, step } from 'playwright-reborn/fixture';
 
-const order = await step('read the receipt', async () => {
-  return page.locator('#order').textContent();
+test('receipt shows the order id', async ({ page }) => {
+  await page.setContent('<p id="order">1842</p>');
+  const order = await step('read the receipt', async () => {
+    return page.locator('#order').textContent();
+  });
+  expect(order).toBe('1842');
 });
-await expect(order).toBe('1842');
 ```
 
 `step` returns the value of its body, the same way `test.step` does. `test` is a normal Playwright test object, so a suite can `test.extend(...)` with its own fixtures.
 
 The page fixture keeps each screenshot on the test that is running, including when tests run in parallel.
 
-`failure` and `last` take one picture at the end of an attempt, for tests that use `page`. `steps` also takes a picture after each `step()`. A plain `test.step` is not photographed. Turn Playwright's own `screenshot` option off if you do not want a second copy of the same picture.
+`failure` takes a picture of failing attempts. `last` takes one picture at the end of every attempt, for tests that use `page`; failing attempts appear under Last failing step. `steps` also takes a picture after each `step()`. A plain `test.step` is not photographed. Turn Playwright's own `screenshot` option off if you do not want a second copy of the same picture.
 
 Files larger than 25MB are listed and not copied.
 
@@ -122,7 +125,21 @@ publishHTML([
 
 `inline: true` is the default, so that HTML file opens from a Jenkins artifact or from disk without a CDN and without `assets/report.css`. Keep the report folder together if the Files page should still download traces and video. Those links are relative paths inside the folder.
 
-Set `open: 'never'` when `CI` is set so the reporter does not launch a browser on the agent.
+When `CI` is set, automatic opening defaults to `never`. An explicit `open` option still wins.
+
+## Development and verification
+
+Run `npm test` to build and run the unit tests plus real Playwright reporter/fixture integration tests. The integration tests stub browser I/O and check parallel screenshot isolation, return values, failures, and every screenshot mode.
+
+Run `npm run verify` for the full demo and browser checks. The demo deliberately includes one failed test and one flaky test. The verifier requires those exact outcomes and fails on additional failures. `REBORN_BROWSER_EXECUTABLE` selects a browser executable for both the demo and verifier; `REBORN_BROWSER_CDP_URL` can connect the verifier to an existing compatible browser.
+
+To check an existing exported report in your normal browser without launching Playwright, run:
+
+```bash
+npm run verify:browser -- reborn-report/index.html /tmp/reborn-browser-checks.html
+```
+
+Open the generated HTML file. It runs the same interaction regressions in browser frames, including navigation, keyboard focus, filters, empty reports, pagination, and long content at 320px, 390px, and 768px widths. This verifier expects the demo report's logs and screenshots. Both reports and this verification page work from disk.
 
 ## License
 

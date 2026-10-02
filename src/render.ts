@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { embedJson } from './format';
-import type { PendingFile, Report } from './model';
+import { baseType, embedJson } from './format';
+import type { PendingFile, Report, ReportAttachment } from './model';
 import { prepareOutput } from './paths';
 
 export function embedFontUrls(css: string, dataUri: (file: string) => string): string {
@@ -36,6 +36,7 @@ ${style}
 <div class="light"></div>
 <a class="skip" href="#tests">Skip to tests</a>
 <main class="page" id="app"></main>
+<noscript><p style="padding:24px">Enable JavaScript to view this report.</p></noscript>
 <script id="reborn-data" type="application/json">${json}</script>
 ${script}
 </body>
@@ -64,15 +65,10 @@ async function tooLarge(file: PendingFile): Promise<boolean> {
   }
 }
 
-function markOmitted(report: Report, target: string): void {
-  for (const test of report.tests) {
-    for (const attempt of test.attempts) {
-      for (const attachment of attempt.attachments) {
-        if (attachment.path !== target) continue;
-        attachment.omitted = true;
-        attachment.path = '';
-      }
-    }
+function markOmitted(attachments: ReportAttachment[]): void {
+  for (const attachment of attachments) {
+    attachment.omitted = true;
+    attachment.path = '';
   }
 }
 
@@ -96,14 +92,8 @@ async function fileBody(file: PendingFile): Promise<Buffer> {
   throw new Error('Attachment had no file and no body.');
 }
 
-function replacePath(report: Report, target: string, next: string): void {
-  for (const test of report.tests) {
-    for (const attempt of test.attempts) {
-      for (const attachment of attempt.attachments) {
-        if (attachment.path === target) attachment.path = next;
-      }
-    }
-  }
+function replacePath(attachments: ReportAttachment[], next: string): void {
+  for (const attachment of attachments) attachment.path = next;
 }
 
 function isImage(file: PendingFile): boolean {
@@ -127,7 +117,7 @@ async function replaceFontFiles(css: string, fontDir: string): Promise<string> {
   return embedFontUrls(css, (file) => uris.get(file) || `fonts/${file}`);
 }
 
-export async function writeReport(
+async function writeReportContents(
   outputDir: string,
   report: Report,
   files: PendingFile[],
@@ -143,7 +133,6 @@ export async function writeReport(
     throw new Error('Reborn UI assets are missing. Build the package before running tests.');
   }
 
-  await prepareOutput(outputDir);
   const assets = path.join(outputDir, 'assets');
   await fs.mkdir(path.join(assets, 'attachments'), { recursive: true });
   await fs.mkdir(path.join(assets, 'fonts'), { recursive: true });
@@ -156,17 +145,28 @@ export async function writeReport(
     await fs.cp(path.join(uiDir, 'fonts'), path.join(assets, 'fonts'), { recursive: true });
   }
 
+  const attachmentIndex = new Map<string, ReportAttachment[]>();
+  for (const test of report.tests) {
+    for (const attempt of test.attempts) {
+      for (const attachment of attempt.attachments) {
+        const entries = attachmentIndex.get(attachment.path) || [];
+        entries.push(attachment);
+        attachmentIndex.set(attachment.path, entries);
+      }
+    }
+  }
   for (const file of files) {
+    const attachments = attachmentIndex.get(file.target) || [];
     if (await tooLarge(file)) {
-      markOmitted(report, file.target);
+      markOmitted(attachments);
       report.warnings.push(`Did not copy ${file.name} because it is larger than 25MB.`);
       continue;
     }
     try {
       if (output.inline && isImage(file)) {
         const body = await fileBody(file);
-        const type = file.contentType || 'image/png';
-        replacePath(report, file.target, `data:${type};base64,${body.toString('base64')}`);
+        const type = baseType(file.contentType || 'image/png');
+        replacePath(attachments, `data:${type};base64,${body.toString('base64')}`);
         continue;
       }
       await writePending(outputDir, file);
@@ -185,4 +185,29 @@ export async function writeReport(
   const documentAssets = await inlineDocument(uiDir);
   await fs.writeFile(indexPath, renderHtml(json, documentAssets), 'utf8');
   return indexPath;
+}
+
+export async function writeReport(
+  outputDir: string,
+  report: Report,
+  files: PendingFile[],
+  uiDir: string,
+  output: { inline: boolean; reportFileName: string } = { inline: true, reportFileName: 'index.html' },
+): Promise<string> {
+  if (!/^[A-Za-z0-9._-]+\.html$/.test(output.reportFileName)) {
+    throw new Error('Reborn reportFileName must be a single .html file name.');
+  }
+  // Build before replacing the old report: attachments may live inside it, and
+  // missing assets should leave the last successful report available.
+  await fs.mkdir(path.dirname(outputDir), { recursive: true });
+  const staging = await fs.mkdtemp(path.join(path.dirname(outputDir), '.reborn-staging-'));
+  try {
+    await writeReportContents(staging, report, files, uiDir, output);
+    await prepareOutput(outputDir);
+    await fs.rmdir(outputDir);
+    await fs.rename(staging, outputDir);
+    return path.join(outputDir, output.reportFileName);
+  } finally {
+    await fs.rm(staging, { recursive: true, force: true });
+  }
 }

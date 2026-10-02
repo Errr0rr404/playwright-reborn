@@ -30,9 +30,10 @@ export const test = base.extend({
     try {
       await use(page);
       const mode = screenshotMode();
-      const failed = testInfo.status === 'failed' || testInfo.status === 'timedOut';
-      if (mode === 'last' || (mode === 'steps' && !failed)) await shot('reborn:last', testInfo);
-      if ((mode === 'failure' || mode === 'steps') && failed) await shot('reborn:failure', testInfo);
+      const failed = testInfo.status === 'failed' || testInfo.status === 'timedOut' || testInfo.status === 'interrupted'
+        || (testInfo.status === 'passed' && testInfo.expectedStatus === 'failed');
+      if ((mode === 'last' || mode === 'steps') && !failed) await shot('reborn:last', testInfo);
+      if ((mode === 'failure' || mode === 'last' || mode === 'steps') && failed) await shot('reborn:failure', testInfo);
     } finally {
       forgetPage(testInfo);
     }

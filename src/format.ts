@@ -1,7 +1,10 @@
+import { StringDecoder } from 'node:string_decoder';
+import { stripVTControlCharacters } from 'node:util';
+
 const LOG_LIMIT = 100_000;
 
 export function stripAnsi(value: string): string {
-  return value.replace(/\u001b\[[0-9;]*m/g, '');
+  return stripVTControlCharacters(value);
 }
 
 export function capText(value: string, limit = LOG_LIMIT): string {
@@ -11,7 +14,17 @@ export function capText(value: string, limit = LOG_LIMIT): string {
 
 export function joinChunks(chunks: Array<string | Buffer> | undefined): string {
   if (!chunks || chunks.length === 0) return '';
-  const text = chunks.map((chunk) => (typeof chunk === 'string' ? chunk : chunk.toString('utf8'))).join('');
+  let decoder = new StringDecoder('utf8');
+  let text = '';
+  for (const chunk of chunks) {
+    if (typeof chunk === 'string') {
+      text += decoder.end() + chunk;
+      decoder = new StringDecoder('utf8');
+    } else {
+      text += decoder.write(chunk);
+    }
+  }
+  text += decoder.end();
   return capText(stripAnsi(text));
 }
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.3
+
+- `steps: 'user'` leaves expectations and `test.attach` calls out of the step tree.
+- Protect unrelated output folders, symbolic links, and project ancestors; custom report filenames can be replaced on later runs.
+- Build reports in a temporary folder before replacing the previous report, preserving attachment sources and the last report when assets are missing.
+- Keep interrupted outcomes separate from skipped tests and explain unexpected passes on tests marked to fail.
+- Remove duplicate step attachments, normalize embedded image MIME types, and preserve UTF-8 across log chunks.
+- Capture failing final attempts consistently in `last` mode; automatic opening defaults to `never` in CI.
+- Fix hash navigation, browser back, malformed IDs, pending searches, log links, and keyboard focus; add filter reset and useful empty states.
+- Improve status colors, run status, contrast, spacing, mobile navigation, long content, chart sizing, and screenshot presentation.
+- Bound test and timeline rendering to batches of 200 and support prototype-like filenames and a project named `all`.
+- Add reporter/fixture integration coverage and reusable browser regression checks; stop verification when the build or demo outcomes are wrong.
+
 ## 0.2.2
 
 - The company name has a subtitle. The default is Test Automation.

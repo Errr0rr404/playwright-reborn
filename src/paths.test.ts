@@ -21,6 +21,7 @@ describe('resolveOutputFolder', () => {
     assert.throws(() => resolveOutputFolder(root, '.'), /subdirectory/);
     assert.throws(() => resolveOutputFolder(root, '..'), /subdirectory/);
     assert.throws(() => resolveOutputFolder(root, root), /project root/);
+    assert.throws(() => resolveOutputFolder(root, path.dirname(root)), /ancestor/);
   });
 });
 
@@ -28,15 +29,36 @@ describe('relativePosix', () => {
   it('uses forward slashes for files inside the project', () => {
     const root = path.join(os.tmpdir(), 'proj');
     assert.equal(relativePosix(root, path.join(root, 'demo', 'cart.spec.ts')), 'demo/cart.spec.ts');
+    assert.equal(relativePosix(root, path.join(root, '..notes', 'cart.spec.ts')), '..notes/cart.spec.ts');
   });
 });
 
 describe('prepareOutput', () => {
+  it('accepts empty custom folders and protects unrelated files even in a report-named folder', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'reborn-safe-'));
+    try {
+      const empty = path.join(root, 'custom');
+      await fs.mkdir(empty);
+      await prepareOutput(empty);
+      const unrelated = path.join(root, 'reborn-report');
+      await fs.mkdir(unrelated);
+      await fs.writeFile(path.join(unrelated, 'notes.txt'), 'keep');
+      await assert.rejects(prepareOutput(unrelated), /Refusing/);
+      assert.equal(await fs.readFile(path.join(unrelated, 'notes.txt'), 'utf8'), 'keep');
+      const link = path.join(root, 'reborn-report-link');
+      await fs.symlink(unrelated, link, 'dir');
+      await assert.rejects(prepareOutput(link), /symbolic link/);
+      assert.equal(await fs.readFile(path.join(unrelated, 'notes.txt'), 'utf8'), 'keep');
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
   it('replaces a previous Reborn folder and refuses an unrelated one', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'reborn-out-'));
     const report = path.join(dir, 'reborn-report');
     await fs.mkdir(report);
     await fs.writeFile(path.join(report, 'keep.txt'), 'old');
+    await fs.writeFile(path.join(report, 'qa.html'), '<script id="reborn-data" type="application/json">{}</script>');
     await prepareOutput(report);
     assert.equal(await fs.access(path.join(report, 'keep.txt')).then(() => true, () => false), false);
 

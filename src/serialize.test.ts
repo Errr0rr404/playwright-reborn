@@ -112,7 +112,7 @@ describe('buildReport', () => {
     assert.deepEqual(report.info, [{ label: 'Environment', value: 'qa' }]);
     assert.equal(report.accent, 'green');
     assert.equal(report.overview, 'chart');
-    assert.equal(report.summary, '1 failed. 3 ran.');
+    assert.equal(report.summary, '1 failed. 3 tests.');
     assert.deepEqual(report.tests.map((test) => test.title), [
       'receipt shows the order id',
       'legacy import',
@@ -133,5 +133,141 @@ describe('buildReport', () => {
     assert.equal(report.tests[2].attempts[0].steps[0].steps.length, 0);
     assert.equal(report.steps, 'user');
     assert.equal(report.counts.skipped, 1);
+  });
+
+  it('hides expectations and attachment calls from the user step tree', () => {
+    const project = suite('project', 'chromium', suite('root', ''));
+    const file = suite('file', 'demo/cart.spec.ts', project);
+    const started = new Date('2026-10-01T15:00:00.000Z');
+    const steps = [
+      {
+        title: 'Before Hooks',
+        category: 'hook',
+        duration: 1,
+        steps: [{ title: 'Click', category: 'pw:api', duration: 1, steps: [] }],
+      },
+      {
+        title: 'read the receipt',
+        category: 'test.step',
+        duration: 5,
+        error: { message: 'Expected 1842' },
+        steps: [
+          {
+            title: 'Expect "toBe"',
+            category: 'expect',
+            duration: 2,
+            error: { message: 'Expected 1842' },
+            steps: [{ title: 'Get text', category: 'pw:api', duration: 1, steps: [] }],
+          },
+          { title: 'Attach "note"', category: 'test.attach', duration: 1, steps: [] },
+        ],
+      },
+      { title: 'Attach "cart"', category: 'test.attach', duration: 1, steps: [] },
+      { title: 'fixture: page', category: 'fixture', duration: 1, steps: [] },
+      {
+        title: 'Expect "toBe"',
+        category: 'expect',
+        duration: 1,
+        steps: [{ title: 'check the ledger', category: 'test.step', duration: 1, steps: [] }],
+      },
+    ];
+    const test: SourceTest = {
+      id: 'one',
+      title: 'receipt shows the order id',
+      location: { file: '/repo/demo/cart.spec.ts', line: 20, column: 1 },
+      parent: file,
+      annotations: [],
+      tags: [],
+      outcome: () => 'unexpected',
+      results: [{
+        retry: 0,
+        status: 'failed',
+        duration: 40,
+        startTime: started,
+        workerIndex: 0,
+        errors: [{ message: 'Expected 1842' }],
+        stdout: [],
+        stderr: [],
+        steps,
+        attachments: [{ name: 'note', contentType: 'text/plain', body: Buffer.from('hi') }],
+      }],
+    };
+    const input = {
+      tests: [test],
+      rootDir: '/repo',
+      playwrightVersion: '1.63.0',
+      projectName: 'playwrightReport',
+      projects: ['chromium'],
+      workers: 1,
+      shard: null,
+      status: 'failed' as const,
+      startTime: started,
+      duration: 40,
+      generatedAt: started.toISOString(),
+      errors: [],
+    };
+
+    const user = buildReport({ ...input, stepDetail: 'user' });
+    const userSteps = user.report.tests[0].attempts[0].steps;
+    assert.deepEqual(userSteps.map((step) => step.title), ['read the receipt', 'check the ledger']);
+    assert.equal(userSteps[0].steps.length, 0);
+    assert.equal(userSteps[0].error, 'Expected 1842');
+    assert.equal(user.report.tests[0].attempts[0].errors[0].message, 'Expected 1842');
+    assert.equal(user.report.tests[0].attempts[0].attachments[0].name, 'note');
+
+    const all = buildReport({ ...input, stepDetail: 'all' });
+    assert.deepEqual(all.report.tests[0].attempts[0].steps.map((step) => step.title), [
+      'Before Hooks',
+      'read the receipt',
+      'Attach "cart"',
+      'fixture: page',
+      'Expect "toBe"',
+    ]);
+    assert.deepEqual(all.report.tests[0].attempts[0].steps[1].steps.map((step) => step.title), [
+      'Expect "toBe"',
+      'Attach "note"',
+    ]);
+  });
+});
+
+describe('report edge cases', () => {
+  const started = new Date('2026-10-01T15:00:00Z');
+  const base: SourceTest = {
+    id: 'one', title: 'example', parent: suite('file', 'test.ts'),
+    location: { file: '/repo/test.ts', line: 1, column: 1 }, tags: [], annotations: [],
+    outcome: () => 'expected',
+    results: [{ retry: 0, status: 'passed', duration: 10, startTime: started, workerIndex: 0 }],
+  };
+  const input = {
+    rootDir: '/repo', playwrightVersion: '1.63.0', projectName: 'Example', projects: [], workers: 1,
+    shard: null, status: 'passed' as const, startTime: started, duration: 10,
+    generatedAt: started.toISOString(), errors: [],
+  };
+
+  it('deduplicates attachments shared between the result and its steps without merging distinct bodies', () => {
+    const attachment = { name: 'shot', contentType: 'image/png', body: Buffer.from('png') };
+    const other = { ...attachment, body: Buffer.from('png') };
+    const result = { ...base.results[0], attachments: [attachment, other], steps: [{
+      title: 'step', category: 'test.step', duration: 1, attachments: [attachment, { ...attachment }],
+    }] };
+    const built = buildReport({ ...input, tests: [{ ...base, results: [result] }] });
+    assert.equal(built.files.length, 2);
+    assert.equal(built.report.tests[0].attempts[0].attachments.length, 2);
+  });
+
+  it('keeps generated ids unique when duplicate ids overlap existing suffixes', () => {
+    const built = buildReport({ ...input, tests: [base, { ...base }, { ...base, id: 'one-1' }] });
+    assert.equal(new Set(built.report.tests.map(test => test.id)).size, 3);
+  });
+
+  it('explains an unexpected pass and counts interrupted results correctly', () => {
+    const built = buildReport({ ...input, tests: [
+      { ...base, expectedStatus: 'failed', outcome: () => 'unexpected' },
+      { ...base, id: 'interrupted', outcome: () => 'skipped', results: [{ ...base.results[0], status: 'interrupted' }] },
+    ] });
+    assert.equal(built.report.counts.failed, 1);
+    assert.equal(built.report.counts.interrupted, 1);
+    assert.equal(built.report.counts.skipped, 0);
+    assert.equal(built.report.tests.find(test => test.id === 'one')?.attempts[0].errors[0].message, 'Expected to fail, but passed.');
   });
 });

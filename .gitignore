@@ -10,3 +10,6 @@ marquee-report-*/
 test-results/
 playwright-report/
 blob-report/
+
+.DS_Store
+.reborn-staging-*/

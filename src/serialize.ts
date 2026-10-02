@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import type { TestError } from '@playwright/test/reporter';
 import {
   attachmentKind,
@@ -60,6 +61,7 @@ export type SourceTest = {
   annotations: { type: string; description?: string }[];
   tags: string[];
   outcome(): 'skipped' | 'expected' | 'unexpected' | 'flaky';
+  expectedStatus?: Attempt['status'];
   results: SourceResult[];
 };
 
@@ -152,12 +154,15 @@ function simplifyError(error: TestError, rootDir: string): ReportError {
   return simplified;
 }
 
+// Playwright records these around the steps a person would follow.
+const PLAYWRIGHT_STEP = new Set(['pw:api', 'fixture', 'expect', 'test.attach']);
+
 function mapSteps(steps: SourceStep[] | undefined, rootDir: string, depth: number, detail: StepDetail): Step[] {
   if (!steps || depth > 12) return [];
   const mapped: Step[] = [];
   for (const step of steps) {
     const kids = mapSteps(step.steps, rootDir, depth + 1, detail);
-    const hide = detail === 'user' && (step.category === 'pw:api' || step.category === 'fixture');
+    const hide = detail === 'user' && PLAYWRIGHT_STEP.has(step.category);
     const quietHook = detail === 'user' && step.category === 'hook' && !step.error;
     if (hide || quietHook) {
       mapped.push(...kids);
@@ -184,17 +189,18 @@ function mapSteps(steps: SourceStep[] | undefined, rootDir: string, depth: numbe
 function collectAttachments(result: SourceResult): SourceAttachment[] {
   const found: SourceAttachment[] = [];
   const seen = new Set<string>();
-  const visit = (attachments: SourceAttachment[] | undefined) => {
+  const visit = (attachments: SourceAttachment[] | undefined, primary = false) => {
     for (const attachment of attachments || []) {
-      const key = attachment.path
-        ? `path:${attachment.path}`
-        : `body:${attachment.name}:${attachment.contentType}:${attachment.body?.length || 0}:${found.length}`;
-      if (seen.has(key)) continue;
+      const source = attachment.path || (attachment.body ? createHash('sha256').update(attachment.body).digest('hex') : 'empty');
+      const key = `${attachment.name}:${attachment.contentType}:${source}`;
+      // The reporter can receive cloned buffers on both the result and the
+      // step. Preserve deliberate repeats in the result, but omit step copies.
+      if (!primary && seen.has(key)) continue;
       seen.add(key);
       found.push(attachment);
     }
   };
-  visit(result.attachments);
+  visit(result.attachments, true);
   const visitSteps = (steps: SourceStep[] | undefined) => {
     for (const step of steps || []) {
       visit(step.attachments);
@@ -209,6 +215,8 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
   const files: PendingFile[] = [];
   let fileIndex = 0;
   const seenIds = new Map<string, number>();
+  const originalIds = new Set(input.tests.map((test) => test.id));
+  const usedIds = new Set<string>();
 
   const sorted = [...input.tests].sort((a, b) => {
     const aStart = a.results[0]?.startTime ? a.results[0].startTime.getTime() : Number.POSITIVE_INFINITY;
@@ -220,7 +228,9 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
   const tests = sorted.map((test, order) => {
     const count = seenIds.get(test.id) || 0;
     seenIds.set(test.id, count + 1);
-    const id = count === 0 ? test.id : `${test.id}-${count}`;
+    let id = count === 0 ? test.id : `${test.id}-${count}`;
+    while ((originalIds.has(id) && id !== test.id) || usedIds.has(id)) id += '-duplicate';
+    usedIds.add(id);
     const results = test.results || [];
     const last = results[results.length - 1];
     const rawStatus = last?.status || 'skipped';
@@ -233,6 +243,9 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
     const attempts: Attempt[] = results.map((result) => {
       const errors = (result.errors && result.errors.length > 0 ? result.errors : result.error ? [result.error] : [])
         .map((error) => simplifyError(error, input.rootDir));
+      if (result.status === 'passed' && test.expectedStatus === 'failed') {
+        errors.push({ message: 'Expected to fail, but passed.' });
+      }
       const attachments: ReportAttachment[] = collectAttachments(result).map((attachment) => {
         const parsed = parseShotName(attachment.name || 'file');
         const ext = extensionFor(attachment.contentType, attachment.path);
