@@ -1,4 +1,4 @@
-import type { Accent, OverviewMode, ShotMode, StepDetail } from './model';
+import type { Accent, ChartStyle, OverviewMode, ShotMode, StepDetail } from './model';
 
 export type RebornOpen = 'always' | 'never' | 'on-failure';
 
@@ -19,6 +19,14 @@ export type RebornOptions = {
   environment?: string;
   state?: string;
   defects?: string | string[];
+  productSubtitle?: string;
+  showCredit?: boolean;
+  showPlaywrightVersion?: boolean;
+  showProjects?: boolean;
+  showProjectFilter?: boolean;
+  commitShort?: boolean;
+  chartStyle?: ChartStyle;
+  ignoreTags?: string | false;
 };
 
 export type ParsedOptions = {
@@ -39,6 +47,14 @@ export type ParsedOptions = {
   environment: string;
   state: string;
   defects: string[];
+  productSubtitle: string;
+  showCredit: boolean;
+  showPlaywrightVersion: boolean;
+  showProjects: boolean;
+  showProjectFilter: boolean;
+  commitShort: boolean;
+  chartStyle: ChartStyle;
+  ignoreTags: string;
 };
 
 const OPENS = new Set<RebornOpen>(['always', 'never', 'on-failure']);
@@ -46,6 +62,7 @@ const SHOTS = new Set<ShotMode>(['off', 'failure', 'last', 'steps']);
 const STEP_DETAILS = new Set<StepDetail>(['user', 'all']);
 const ACCENTS = new Set<Accent>(['green', 'red', 'blue', 'amber', 'violet']);
 const OVERVIEWS = new Set<OverviewMode>(['chart', 'timeline']);
+const CHARTS = new Set<ChartStyle>(['pie', 'bar', 'both']);
 
 export function parseOptions(options: RebornOptions = {}): ParsedOptions {
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {
@@ -71,9 +88,18 @@ export function parseOptions(options: RebornOptions = {}): ParsedOptions {
   const showLogs = flag(options.showLogs, 'showLogs');
   const showFiles = flag(options.showFiles, 'showFiles');
   const inline = flag(options.inline, 'inline');
+  const showCredit = flag(options.showCredit, 'showCredit', false);
+  const showPlaywrightVersion = flag(options.showPlaywrightVersion, 'showPlaywrightVersion', false);
+  const showProjects = flag(options.showProjects, 'showProjects', false);
+  const showProjectFilter = showProjects && flag(options.showProjectFilter, 'showProjectFilter', false);
+  const commitShort = flag(options.commitShort, 'commitShort', true);
   const overview = options.overview ?? 'chart';
   if (!OVERVIEWS.has(overview)) {
     throw new Error('Reborn overview must be "chart" or "timeline".');
+  }
+  const chartStyle = options.chartStyle ?? 'both';
+  if (!CHARTS.has(chartStyle)) {
+    throw new Error('Reborn chartStyle must be "pie", "bar", or "both".');
   }
   const outputExplicit = options.outputFolder !== undefined;
   const outputFolder = options.outputFolder ?? 'reborn-report';
@@ -102,7 +128,38 @@ export function parseOptions(options: RebornOptions = {}): ParsedOptions {
     environment: optionalText(options.environment, 'environment'),
     state: optionalText(options.state, 'state'),
     defects: defectsOf(options.defects),
+    productSubtitle: subtitle(options.productSubtitle),
+    showCredit,
+    showPlaywrightVersion,
+    showProjects,
+    showProjectFilter,
+    commitShort,
+    chartStyle,
+    ignoreTags: ignorePattern(options.ignoreTags),
   };
+}
+
+function subtitle(value: string | undefined): string {
+  if (value === undefined) return 'Test Automation';
+  if (typeof value !== 'string') {
+    throw new Error('Reborn productSubtitle must be text.');
+  }
+  return value.trim();
+}
+
+function ignorePattern(value: string | false | undefined): string {
+  if (value === false) return '';
+  const pattern = value === undefined ? '^@?HC2T-' : value;
+  if (typeof pattern !== 'string') {
+    throw new Error('Reborn ignoreTags must be a pattern or false.');
+  }
+  if (!pattern.trim()) return '';
+  try {
+    new RegExp(pattern, 'i');
+  } catch {
+    throw new Error('Reborn ignoreTags must be a valid pattern.');
+  }
+  return pattern.trim();
 }
 
 function optionalText(value: string | undefined, name: string): string {
@@ -122,8 +179,8 @@ function defectsOf(value: string | string[] | undefined): string[] {
   return items.map((item) => item.trim());
 }
 
-function flag(value: boolean | undefined, name: string): boolean {
-  if (value === undefined) return true;
+function flag(value: boolean | undefined, name: string, fallback = true): boolean {
+  if (value === undefined) return fallback;
   if (typeof value !== 'boolean') {
     throw new Error(`Reborn ${name} must be true or false.`);
   }

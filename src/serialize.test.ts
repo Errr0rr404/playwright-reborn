@@ -19,7 +19,7 @@ describe('buildReport', () => {
       location: { file: '/repo/demo/cart.spec.ts', line: 4, column: 1 },
       parent: group,
       annotations: [],
-      tags: ['@cart'],
+      tags: ['@cart', '@HC2T-9'],
       outcome: () => 'expected',
       results: [{
         retry: 0,
@@ -123,6 +123,7 @@ describe('buildReport', () => {
     assert.equal(report.tests[0].attempts[0].errors[0].message, 'Expected 1842');
     assert.deepEqual(report.tests[2].group, ['cart']);
     assert.equal(report.tests[2].file, 'demo/cart.spec.ts');
+    assert.deepEqual(report.tests[2].tags, ['@cart']);
     assert.equal(report.tests[2].attempts[0].stdout, 'total is $14\n');
     assert.equal(files.length, 2);
     assert.equal(files[0].target, 'assets/attachments/000-cart.png');

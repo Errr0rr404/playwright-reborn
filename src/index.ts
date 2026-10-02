@@ -7,7 +7,7 @@ import { resolveOutputFolder } from './paths';
 import { writeReport } from './render';
 import { buildReport } from './serialize';
 import { capText, stripAnsi } from './format';
-import { infoRows, listValue, textValue } from './info';
+import { infoRows, listValue, shortSha, textValue } from './info';
 
 class RebornReporter implements Reporter {
   private readonly parsed: ReturnType<typeof parseOptions>;
@@ -72,11 +72,14 @@ class RebornReporter implements Reporter {
       defects: [...new Set(defects)].join(', '),
       baseURL,
       branch: textValue(this.metadata('branch')) || process.env.GITHUB_REF_NAME || process.env.GIT_BRANCH || process.env.BRANCH_NAME || '',
-      sha: textValue(this.metadata('sha')) || process.env.GITHUB_SHA || process.env.GIT_COMMIT || process.env.COMMIT_SHA || '',
-      projects: config?.projects.map((project) => project.name).filter(Boolean).join(', ') || '',
+      sha: shortSha(
+        textValue(this.metadata('sha')) || textValue(this.metadata('githubSha')) || process.env.GITHUB_SHA || process.env.GIT_COMMIT || process.env.COMMIT_SHA || '',
+        this.parsed.commitShort,
+      ),
+      projects: this.parsed.showProjects ? config?.projects.map((project) => project.name).filter(Boolean).join(', ') || '' : '',
       workers: config ? String(config.workers) : '',
       shard: config?.shard ? `${config.shard.current}/${config.shard.total}` : '',
-      playwright: config?.version || '',
+      playwright: this.parsed.showPlaywrightVersion ? config?.version || '' : '',
     });
   }
 
@@ -109,6 +112,13 @@ class RebornReporter implements Reporter {
       showLogs: this.parsed.showLogs,
       showFiles: this.parsed.showFiles,
       overview: this.parsed.overview,
+      chartStyle: this.parsed.chartStyle,
+      productSubtitle: this.parsed.productSubtitle,
+      showCredit: this.parsed.showCredit,
+      showPlaywrightVersion: this.parsed.showPlaywrightVersion,
+      showProjects: this.parsed.showProjects,
+      showProjectFilter: this.parsed.showProjectFilter,
+      ignoreTags: this.parsed.ignoreTags,
       info: this.runInfo(),
     });
     const indexPath = await writeReport(outputDir, report, files, path.join(__dirname, 'ui'), {

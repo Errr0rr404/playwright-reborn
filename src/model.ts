@@ -12,6 +12,8 @@ export type Accent = 'green' | 'red' | 'blue' | 'amber' | 'violet';
 
 export type OverviewMode = 'chart' | 'timeline';
 
+export type ChartStyle = 'pie' | 'bar' | 'both';
+
 export type StepDetail = 'user' | 'all';
 
 export type Counts = {
@@ -95,6 +97,13 @@ export type Report = {
   showLogs: boolean;
   showFiles: boolean;
   overview: OverviewMode;
+  chartStyle: ChartStyle;
+  productSubtitle: string;
+  showCredit: boolean;
+  showPlaywrightVersion: boolean;
+  showProjects: boolean;
+  showProjectFilter: boolean;
+  ignoreTags: string;
   summary: string;
   startTime: string;
   duration: number;

@@ -70,17 +70,18 @@
   document.body.dataset.accent = accentName();
   document.title = companyName() + (data.summary ? ' · ' + data.summary : '');
   fill(document.getElementById('meta'), metaBits().map(function (bit) { return el('span', null, [bit]); }));
-  fill(document.getElementById('foot'), [
-    el('span', null, ['Open source by World of Z']),
-    el('span', null, [formatWhen(data.generatedAt)]),
-    el('span', null, ['Keys 1 to 5 switch tabs. Press / to find a test.']),
-  ]);
+  var footBits = [];
+  if (data.showCredit === true) footBits.push(el('span', null, ['Open source by World of Z']));
+  footBits.push(el('span', null, [formatWhen(data.generatedAt)]));
+  footBits.push(el('span', null, ['Keys 1 onward switch pages. Press / to find a test.']));
+  fill(document.getElementById('foot'), footBits);
   var BANDS = [
     ['under1', 'Under 1 minute'],
     ['1to3', '1 to 3 minutes'],
     ['3to5', '3 to 5 minutes'],
     ['over5', 'Over 5 minutes'],
   ];
+  var CHART_COLORS = ['var(--accent)', 'rgba(255,255,255,0.72)', 'rgba(255,255,255,0.42)', 'rgba(255,255,255,0.18)'];
 
   paintOverview();
   showTab(state.tab, true);
@@ -248,7 +249,7 @@
     var host = document.getElementById('panel-overview');
     host.innerHTML = [
       '<header class="hero">',
-      '<div><h1 class="word" id="word"></h1><p class="credit">Open source by World of Z</p><p class="summary" id="summary"></p></div>',
+      '<div><h1 class="word" id="word"></h1><p class="product" id="product"></p><p class="summary" id="summary"></p></div>',
       '<p class="time" id="time"></p>',
       '</header>',
       '<div id="errors"></div>',
@@ -265,13 +266,17 @@
       '</div>',
       '</div>',
       '<p class="section-note" id="range-note"></p>',
-      '<div class="legend" id="duration"></div>',
+      '<div class="charts" id="duration"></div>',
       '<div class="strip-window" id="strip-window"><div class="strip-scroll"><div class="strip" id="strip" role="group" aria-label="Tests by time"></div></div></div>',
       '</div>',
       '</section>',
     ].join('');
     var word = document.getElementById('word');
     word.textContent = companyName();
+    var product = document.getElementById('product');
+    var subtitle = typeof data.productSubtitle === 'string' ? data.productSubtitle.trim() : 'Test Automation';
+    if (subtitle) product.textContent = subtitle;
+    else product.hidden = true;
     document.getElementById('summary').textContent = data.summary || '';
     countUp(document.getElementById('time'), data.duration || 0, formatDuration);
     paintErrors();
@@ -317,29 +322,125 @@
     return data.tests.filter(function (test) { return test.status !== 'skipped'; });
   }
 
-  function paintDuration() {
-    var host = document.getElementById('duration');
-    if (!host) return;
+  function bandCounts() {
     var counts = { under1: 0, '1to3': 0, '3to5': 0, over5: 0 };
     countedTests().forEach(function (test) {
       counts[durationBand(test.duration)] += 1;
     });
+    return counts;
+  }
+
+  function chartStyle() {
+    return data.chartStyle === 'pie' || data.chartStyle === 'bar' ? data.chartStyle : 'both';
+  }
+
+  function polar(cx, cy, radius, degrees) {
+    var rad = (degrees - 90) * Math.PI / 180;
+    return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
+  }
+
+  function piePath(start, end) {
+    var span = end - start;
+    if (span >= 359.99) return '';
+    var from = polar(110, 110, 96, start);
+    var to = polar(110, 110, 96, end);
+    var large = span > 180 ? 1 : 0;
+    return 'M 110 110 L ' + from.x.toFixed(2) + ' ' + from.y.toFixed(2) + ' A 96 96 0 ' + large + ' 1 ' + to.x.toFixed(2) + ' ' + to.y.toFixed(2) + ' Z';
+  }
+
+  function paintPie(counts) {
+    var total = 0;
+    BANDS.forEach(function (band) { total += counts[band[0]]; });
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 220 220');
+    svg.setAttribute('class', 'pie');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Tests by duration');
+    if (!total) {
+      var empty = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      empty.setAttribute('cx', '110');
+      empty.setAttribute('cy', '110');
+      empty.setAttribute('r', '96');
+      empty.setAttribute('fill', 'rgba(255,255,255,0.08)');
+      svg.appendChild(empty);
+      return svg;
+    }
+    var angle = 0;
+    var full = null;
+    BANDS.forEach(function (band, index) {
+      var count = counts[band[0]];
+      if (!count) return;
+      var sweep = (count / total) * 360;
+      if (sweep >= 359.99) {
+        full = index;
+        angle += sweep;
+        return;
+      }
+      var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', piePath(angle, angle + sweep));
+      path.setAttribute('fill', CHART_COLORS[index]);
+      path.setAttribute('data-slice', band[0]);
+      path.setAttribute('class', 'slice');
+      svg.appendChild(path);
+      angle += sweep;
+    });
+    if (full !== null) {
+      var circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', '110');
+      circle.setAttribute('cy', '110');
+      circle.setAttribute('r', '96');
+      circle.setAttribute('fill', CHART_COLORS[full]);
+      circle.setAttribute('data-slice', BANDS[full][0]);
+      circle.setAttribute('class', 'slice');
+      svg.appendChild(circle);
+    }
+    return svg;
+  }
+
+  function paintDuration() {
+    var host = document.getElementById('duration');
+    if (!host) return;
+    var counts = bandCounts();
     var max = 1;
     BANDS.forEach(function (band) { max = Math.max(max, counts[band[0]]); });
-    fill(host, BANDS.map(function (band) {
-      var fillBar = el('span', { class: 'band-fill' });
-      fillBar.style.width = Math.round((counts[band[0]] / max) * 100) + '%';
-      return el('button', {
-        class: 'band',
-        type: 'button',
-        'data-band': band[0],
-        'aria-pressed': state.band === band[0] ? 'true' : 'false',
-      }, [
-        el('span', { class: 'n' }, [String(counts[band[0]])]),
-        el('span', { class: 'band-label' }, [band[1]]),
-        el('span', { class: 'band-track' }, [fillBar]),
-      ]);
-    }));
+    var style = chartStyle();
+    var nodes = [];
+    if (style !== 'bar') nodes.push(paintPie(counts));
+    if (style !== 'pie') {
+      nodes.push(el('div', { class: 'bars' }, BANDS.map(function (band, index) {
+        var fillBar = el('span', { class: 'band-fill' });
+        fillBar.style.width = Math.round((counts[band[0]] / max) * 100) + '%';
+        fillBar.style.background = CHART_COLORS[index];
+        return el('button', {
+          class: 'band',
+          type: 'button',
+          'data-band': band[0],
+          'aria-pressed': state.band === band[0] ? 'true' : 'false',
+        }, [
+          el('span', { class: 'swatch' }),
+          el('span', { class: 'band-label' }, [band[1]]),
+          el('span', { class: 'n' }, [String(counts[band[0]])]),
+          el('span', { class: 'band-track' }, [fillBar]),
+        ]);
+      })));
+    } else {
+      nodes.push(el('div', { class: 'bars' }, BANDS.map(function (band, index) {
+        return el('button', {
+          class: 'band band-key',
+          type: 'button',
+          'data-band': band[0],
+          'aria-pressed': state.band === band[0] ? 'true' : 'false',
+        }, [
+          el('span', { class: 'swatch' }),
+          el('span', { class: 'band-label' }, [band[1]]),
+          el('span', { class: 'n' }, [String(counts[band[0]])]),
+        ]);
+      })));
+    }
+    fill(host, nodes);
+    host.querySelectorAll('.swatch').forEach(function (swatch, index) {
+      swatch.style.background = CHART_COLORS[index % CHART_COLORS.length];
+    });
   }
 
   function applyOverview() {
@@ -525,6 +626,16 @@
     });
   }
 
+  function keptTag(tag) {
+    var pattern = typeof data.ignoreTags === 'string' ? data.ignoreTags : '^@?HC2T-';
+    if (!pattern) return true;
+    try {
+      return !new RegExp(pattern, 'i').test(tag);
+    } catch (error) {
+      return true;
+    }
+  }
+
   function uniqueValues(pick) {
     var seen = {};
     data.tests.forEach(function (test) {
@@ -538,7 +649,7 @@
   function paintTags() {
     var host = document.getElementById('tags');
     if (!host) return;
-    var tags = uniqueValues(function (test) { return test.tags || []; });
+    var tags = uniqueValues(function (test) { return (test.tags || []).filter(keptTag); });
     var projects = uniqueValues(function (test) { return test.project ? [test.project] : []; });
     var nodes = [];
     if (tags.length) {
@@ -546,7 +657,7 @@
       nodes.push(chip('tag-btn', 'all', 'All', state.tag));
       tags.forEach(function (tag) { nodes.push(chip('tag-btn', tag, tag, state.tag)); });
     }
-    if (projects.length > 1) {
+    if (data.showProjectFilter === true && projects.length > 1) {
       nodes.push(el('span', { class: 'order-label' }, ['Project']));
       nodes.push(chip('project-btn', 'all', 'All', state.projectFilter));
       projects.forEach(function (project) { nodes.push(chip('project-btn', project, project, state.projectFilter)); });
@@ -982,9 +1093,10 @@
         applyOverview();
         return;
       }
-      var band = target.closest('.band');
+      var band = target.closest('.band') || target.closest('.slice');
       if (band) {
-        state.band = state.band === band.dataset.band ? 'all' : band.dataset.band;
+        var bandId = band.dataset.band || band.getAttribute('data-slice');
+        state.band = state.band === bandId ? 'all' : bandId;
         state.order = state.band === 'all' ? state.order : 'slowest';
         state.listLimit = 200;
         keepSelectionInFilter();
@@ -1361,12 +1473,19 @@
     return value;
   }
 
+  function commitText() {
+    var row = (data.info || []).find(function (item) { return item.label === 'Commit'; });
+    return row && row.value ? row.value : '';
+  }
+
   function metaBits() {
     var bits = [];
-    if (data.projectName) bits.push(data.projectName);
-    if (Array.isArray(data.projects) && data.projects.length) bits.push(data.projects.join(', '));
+    if (data.showProjects === true && data.projectName) bits.push(data.projectName);
+    if (data.showProjects === true && Array.isArray(data.projects) && data.projects.length) bits.push(data.projects.join(', '));
     if (data.startTime) bits.push(formatWhen(data.startTime));
-    if (data.playwrightVersion) bits.push('Playwright ' + data.playwrightVersion);
+    var sha = commitText();
+    if (sha) bits.push(sha);
+    if (data.showPlaywrightVersion === true && data.playwrightVersion) bits.push('Playwright ' + data.playwrightVersion);
     if (data.shard) bits.push('Shard ' + data.shard);
     return bits;
   }

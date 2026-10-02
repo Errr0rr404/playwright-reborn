@@ -22,7 +22,20 @@ describe('parseOptions', () => {
       environment: '',
       state: '',
       defects: [],
+      productSubtitle: 'Test Automation',
+      showCredit: false,
+      showPlaywrightVersion: false,
+      showProjects: false,
+      showProjectFilter: false,
+      commitShort: true,
+      chartStyle: 'both',
+      ignoreTags: '^@?HC2T-',
     });
+  });
+
+  it('rejects an unknown chart style', () => {
+    assert.throws(() => parseOptions({ chartStyle: 'donut' as 'pie' }), /chartStyle must be/);
+    assert.equal(parseOptions({ ignoreTags: false }).ignoreTags, '');
   });
 
   it('rejects a path in the report file name', () => {

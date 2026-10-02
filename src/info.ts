@@ -31,6 +31,14 @@ export function textValue(value: unknown): string {
   return '';
 }
 
+export function shortSha(value: string, short = true): string {
+  const clean = value.trim();
+  if (!clean || !short) return clean;
+  const hex = clean.match(/[0-9a-f]{7,40}/i);
+  if (!hex) return clean.length > 12 ? clean.slice(0, 7) : clean;
+  return hex[0].slice(0, 7);
+}
+
 export function listValue(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.flatMap((item) => listValue(item));

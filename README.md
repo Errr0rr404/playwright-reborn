@@ -53,6 +53,8 @@ Pass any of these next to the reporter. Omitted settings use the default.
   user: 'ada',
   state: 'CA',
   defects: ['PAY-14'],
+  productSubtitle: 'Test Automation',
+  chartStyle: 'both',
 }]
 ```
 
@@ -65,6 +67,14 @@ Pass any of these next to the reporter. Omitted settings use the default.
 | `reportFileName` | `index.html` | One `.html` file name, with no folders. Jenkins HTML Publisher can point at this file. |
 | `inline` | `true` | `true` or `false`. `true` writes one HTML file with the CSS, script, and fonts inside it, and embeds screenshots. Traces and other files stay as relative links in the report folder. |
 | `overview` | `chart` | `chart` or `timeline`. Which view the overview opens on. The buttons on the page can still switch it. |
+| `chartStyle` | `both` | `pie`, `bar`, or `both`. The duration chart. `chart` opens on these charts. |
+| `productSubtitle` | `Test Automation` | The line under the company name. An empty string hides it. |
+| `showCredit` | `false` | `true` shows “Open source by World of Z” in the footer. It is not on the overview. |
+| `showPlaywrightVersion` | `false` | `true` shows the Playwright version in the header and the info grid. |
+| `showProjects` | `false` | `true` shows project names in the header and the info grid. |
+| `showProjectFilter` | `false` | `true` adds a Project filter on Tests. It stays off when `showProjects` is `false`. |
+| `commitShort` | `true` | `true` shows the first 7 characters of the commit. `false` shows the full value. |
+| `ignoreTags` | `^@?HC2T-` | A pattern for tags to hide, or `false` to keep every tag. |
 | `screenshots` | `failure` | `off`, `failure`, `last`, or `steps`. When the fixture takes a picture. The reporter sets `REBORN_SCREENSHOTS` in `onBegin`. Do not set that variable yourself. The Screenshots page stays in the report either way. |
 | `steps` | `user` | `user` or `all`. `user` keeps the steps you wrote and the expectations, and leaves hooks and Playwright's own API calls out. `all` keeps those calls too. |
 | `showLogs` | `true` | `true` or `false`. `false` leaves the Logs page out. |

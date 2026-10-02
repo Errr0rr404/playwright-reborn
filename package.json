@@ -1,6 +1,6 @@
 {
   "name": "playwright-reborn",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A Playwright reporter that writes one self-contained HTML report when the run finishes.",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

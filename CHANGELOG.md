@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.2
+
+- The company name has a subtitle. The default is Test Automation.
+- The overview no longer shows the open-source credit, the Playwright version, or project names unless you turn those on.
+- The commit is the first 7 characters. Projects are off the info grid unless `showProjects` is true.
+- The Tests page keeps the tag filter and hides the project filter unless `showProjectFilter` is true.
+- Tags that look like `HC2T-` ids are hidden. Set `ignoreTags` to `false` to keep them.
+- The duration view is a pie chart and a bar chart. `chartStyle` can be `pie`, `bar`, or `both`.
+
 ## 0.2.1
 
 - The Timeline view no longer keeps the duration chart on screen.

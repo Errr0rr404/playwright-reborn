@@ -9,7 +9,7 @@ import {
   safeFileName,
   stripAnsi,
 } from './format';
-import type { Accent, Attempt, InfoRow, PendingFile, Report, ReportAttachment, ReportError, RunStatus, ShotMode, Step, StepDetail } from './model';
+import type { Accent, Attempt, ChartStyle, InfoRow, PendingFile, Report, ReportAttachment, ReportError, RunStatus, ShotMode, Step, StepDetail } from './model';
 import { relativePosix } from './paths';
 import { countTests, displayStatus, isExpectedFailure, outcomeWord, summaryLine } from './status';
 
@@ -84,6 +84,13 @@ export type BuildInput = {
   showFiles?: boolean;
   overview?: 'chart' | 'timeline';
   info?: InfoRow[];
+  chartStyle?: ChartStyle;
+  productSubtitle?: string;
+  showCredit?: boolean;
+  showPlaywrightVersion?: boolean;
+  showProjects?: boolean;
+  showProjectFilter?: boolean;
+  ignoreTags?: string;
 };
 
 function walkSuites(test: SourceTest): SourceSuite[] {
@@ -101,6 +108,17 @@ function projectOf(test: SourceTest): string {
     if (suite.type === 'project') return suite.title;
   }
   return '';
+}
+
+function visibleTags(tags: string[], pattern: string): string[] {
+  if (!pattern) return tags.slice(0, 20);
+  let expression: RegExp;
+  try {
+    expression = new RegExp(pattern, 'i');
+  } catch {
+    return tags.slice(0, 20);
+  }
+  return tags.filter((tag) => !expression.test(tag)).slice(0, 20);
 }
 
 function groupOf(test: SourceTest): string[] {
@@ -262,7 +280,7 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
       line: test.location.line,
       project: projectOf(test),
       group: groupOf(test),
-      tags: test.tags.slice(0, 20),
+      tags: visibleTags(test.tags, input.ignoreTags ?? '^@?HC2T-'),
       annotations: test.annotations.slice(0, 40).map((annotation) => ({
         type: annotation.type,
         description: annotation.description ? capText(annotation.description, 500) : undefined,
@@ -289,6 +307,13 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
     showLogs: input.showLogs !== false,
     showFiles: input.showFiles !== false,
     overview: input.overview === 'timeline' ? 'timeline' : 'chart',
+    chartStyle: input.chartStyle === 'pie' || input.chartStyle === 'bar' ? input.chartStyle : 'both',
+    productSubtitle: input.productSubtitle === undefined ? 'Test Automation' : input.productSubtitle,
+    showCredit: input.showCredit === true,
+    showPlaywrightVersion: input.showPlaywrightVersion === true,
+    showProjects: input.showProjects === true,
+    showProjectFilter: input.showProjectFilter === true,
+    ignoreTags: input.ignoreTags ?? '^@?HC2T-',
     summary: summaryLine(counts),
     startTime: input.startTime.toISOString(),
     duration: input.duration,
