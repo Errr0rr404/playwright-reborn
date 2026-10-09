@@ -40,12 +40,12 @@ const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 await page.goto(pathToFileURL(htmlPath).href);
 await page.evaluate(() => document.fonts.ready);
-await page.getByRole('heading', { level: 1, name: 'playwrightReport' }).waitFor();
+await page.getByRole('heading', { level: 1, name: 'Dashboard' }).waitFor();
 await page.getByText('Test Automation', { exact: true }).waitFor();
 assert.equal(await page.getByText('Open source by World of Z').count(), 0);
 assert.equal((await page.locator('#meta').innerText()).includes('Playwright'), false);
 assert.equal(await page.locator('.pie').count(), 1);
-assert.equal(await page.locator('.project-btn').count(), 0);
+assert.equal(await page.locator('#project-select').count(), 0);
 await page.waitForFunction(() => document.querySelector('#legend .count[data-status="failed"] .n')?.textContent === '1');
 const ran = data.tests.filter((test) => test.status !== 'skipped');
 const inBand = (min, max) => ran.filter((test) => test.duration >= min && (max == null || test.duration < max)).length;
@@ -61,16 +61,12 @@ const failed = data.tests.find((test) => test.status === 'failed');
 const failedRow = page.locator('#strip .run-row[data-status="failed"]');
 const failedText = await failedRow.innerText();
 assert.ok(failedText.includes('Failed') && failedText.includes(failed.title), failedText);
-const bar = await failedRow.evaluate((node) => {
-  const fill = node.querySelector('.run-fill').getBoundingClientRect().width;
-  const track = node.querySelector('.run-track').getBoundingClientRect().width;
-  const name = getComputedStyle(node.querySelector('.run-name')).color;
-  const bg = getComputedStyle(node).backgroundColor;
-  return { fill, track, name, bg };
-});
-assert.notEqual(bar.bg, 'rgb(0, 255, 136)', 'failed row must not be a solid green bar');
-assert.notEqual(bar.name, bar.bg, 'failed test name must stay readable');
-assert.ok(bar.fill < bar.track * 0.6, `duration bar filled the track (${bar.fill} of ${bar.track})`);
+const appearance = await failedRow.evaluate((node) => ({
+  name: getComputedStyle(node.querySelector('.run-name')).color,
+  bg: getComputedStyle(node).backgroundColor,
+}));
+assert.notEqual(appearance.name, appearance.bg, 'Failed test name must stay readable');
+assert.equal(await failedRow.locator('.run-time').isVisible(), true, 'Timeline is missing duration');
 await page.getByRole('button', { name: 'Chart', exact: true }).click();
 assert.equal(await page.locator('#strip-window').isHidden(), true);
 assert.equal(await page.locator('#panel-tests').isHidden(), true);
@@ -81,15 +77,15 @@ await page.screenshot({ path: '/tmp/reborn-landing.png', fullPage: true });
 
 await page.locator('#duration [data-band="under1"]').click();
 const longest = data.tests.slice().sort((a, b) => (b.duration || 0) - (a.duration || 0) || a.title.localeCompare(b.title))[0];
-assert.equal(await page.locator('.band-clear').innerText(), 'Under 1 minute');
-assert.equal(await page.locator('#order [data-order="slowest"]').getAttribute('aria-pressed'), 'true');
+assert.ok((await page.locator('.band-clear').innerText()).includes('Under 1 minute'));
+assert.equal(await page.locator('#sort-select').inputValue(), 'slowest');
 assert.equal(await page.locator('#tests .row .row-title').first().innerText(), longest.title);
 await page.locator('.band-clear').click();
 assert.equal(await page.locator('.band-clear').count(), 0);
 
-await page.getByRole('button', { name: 'Grouped', exact: true }).click();
+await page.getByLabel('Sort', { exact: true }).selectOption('grouped');
 await page.getByText('1842', { exact: false }).first().waitFor();
-await page.getByRole('button', { name: 'Slowest', exact: true }).click();
+await page.getByLabel('Sort', { exact: true }).selectOption('slowest');
 assert.equal(await page.locator('#tests .row .row-title').first().innerText(), longest.title);
 await page.screenshot({ path: '/tmp/reborn-tests.png', fullPage: true });
 

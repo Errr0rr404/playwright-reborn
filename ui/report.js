@@ -47,18 +47,22 @@
   var findTimer = 0;
 
   app.innerHTML = [
-    '<div class="atmosphere" aria-hidden="true"><canvas class="bands"></canvas><div class="grain"></div><div class="veil"></div></div>',
     '<div class="shell">',
     '<aside class="rail">',
-    '<div class="tabbar" role="tablist" aria-label="Report">',
+    '<div class="sidebar-brand">' + icon('brand') + '<span>Reborn<span class="brand-caption">Test reports</span></span></div>',
+    '<div class="project-card">' + icon('folder') + '<div><span class="project-caption">Workspace</span><strong id="workspace-name"></strong></div></div>',
+    '<p class="nav-caption">Run workspace</p>',
+    '<div class="tabbar" role="tablist" aria-label="Report" aria-orientation="vertical">',
 
     TABS.map(function (id) {
-      return tabButton(id, id.charAt(0).toUpperCase() + id.slice(1));
+      return tabButton(id, id === 'overview' ? 'Dashboard' : id.charAt(0).toUpperCase() + id.slice(1));
     }).join(''),
     '</div>',
-    '<p class="meta" id="meta"></p>',
+    '<div class="sidebar-bottom"><p class="nav-caption">Current run</p><p class="sidebar-state run-state" id="sidebar-state"></p><p class="sidebar-note">Completed <span id="sidebar-time"></span></p><div class="keyboard-hint"><kbd>/</kbd><span>Find a test</span></div></div>',
     '</aside>',
     '<div class="stage">',
+    '<header class="workspace-bar"><div class="breadcrumb"><span id="breadcrumb-company"></span><span class="breadcrumb-separator">/</span><strong id="page-name">Dashboard</strong></div><button class="theme-toggle" id="theme-toggle" type="button" role="switch" aria-checked="false" aria-label="Dark mode">' + icon('moon') + '<span>Dark mode</span><span class="theme-switch" aria-hidden="true"></span></button></header>',
+    '<div class="report-content">',
     '<div id="panel-overview" role="tabpanel"></div>',
     '<div id="panel-tests" role="tabpanel" hidden></div>',
     '<div id="panel-screenshots" role="tabpanel" hidden></div>',
@@ -67,11 +71,16 @@
     '<p class="foot" id="foot"></p>',
     '</div>',
     '</div>',
+    '</div>',
   ].join('');
 
   document.body.dataset.accent = accentName();
+  applyTheme(readTheme());
   document.title = companyName() + (data.summary ? ' · ' + data.summary : '');
-  fill(document.getElementById('meta'), metaBits().map(function (bit) { return el('span', null, [bit]); }));
+  document.getElementById('workspace-name').textContent = companyName();
+  document.getElementById('breadcrumb-company').textContent = companyName();
+  document.getElementById('sidebar-time').textContent = formatWhen(data.generatedAt);
+  setRunState(document.getElementById('sidebar-state'));
   var footBits = [];
   if (data.showCredit === true) footBits.push(el('span', null, ['Open source by World of Z']));
   footBits.push(el('span', null, [formatWhen(data.generatedAt)]));
@@ -83,94 +92,41 @@
     ['3to5', '3 to 5 minutes'],
     ['over5', 'Over 5 minutes'],
   ];
-  var CHART_COLORS = ['var(--accent)', 'rgba(255,255,255,0.72)', 'rgba(255,255,255,0.42)', 'rgba(255,255,255,0.18)'];
+  var CHART_COLORS = ['var(--heading)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)'];
 
+  syncTabOrientation();
+  window.addEventListener('resize', syncTabOrientation);
   paintOverview();
   showTab(state.tab, true);
   bind();
-  watchHeader();
-  startCurtain();
 
-  function startCurtain() {
-    var canvas = document.querySelector('.atmosphere .bands');
-    if (!canvas || !canvas.getContext) return;
-    var ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    var ratio = 1;
-    var columns = [];
-    var count = 22;
-    for (var i = 0; i < count; i += 1) {
-      var n = Math.sin(210 + i * 2.17);
-      columns.push({
-        at: (i + 0.35 + n * 0.15) / count,
-        width: 0.012 + (0.5 + n * 0.5) * 0.018,
-        speed: 0.22 + (i % 6) * 0.05,
-        phase: i * 1.37,
-        depth: i % 3,
-      });
-    }
-    function resize() {
-      ratio = Math.min(window.devicePixelRatio || 1, 2);
-      var rect = canvas.getBoundingClientRect();
-      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
-      canvas.height = Math.max(1, Math.floor(rect.height * ratio));
-    }
-    var rgb = accentParts();
-    function draw(now) {
-      var w = canvas.width;
-      var h = canvas.height;
-      var t = reduce ? 8 : now / 1000;
-      ctx.clearRect(0, 0, w, h);
-      var wash = ctx.createLinearGradient(0, 0, 0, h);
-      wash.addColorStop(0, 'rgba(' + rgb + ', 0.10)');
-      wash.addColorStop(0.42, '#080b0a');
-      wash.addColorStop(1, '#080808');
-      ctx.fillStyle = wash;
-      ctx.fillRect(0, 0, w, h);
-      columns.forEach(function (column) {
-        var sway = Math.sin(t * column.speed + column.phase) * 0.02;
-        var breath = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(t * column.speed * 1.4 + column.phase));
-        var x = (column.at + sway) * w;
-        var spread = Math.max(10, column.width * w * (0.55 + breath * 0.35));
-        var gradient = ctx.createLinearGradient(x - spread, 0, x + spread, 0);
-        var alpha = 0.28 + 0.62 * breath;
-        gradient.addColorStop(0, 'rgba(' + rgb + ', 0)');
-        gradient.addColorStop(0.42, 'rgba(' + rgb + ', ' + (alpha * 0.45).toFixed(3) + ')');
-        gradient.addColorStop(0.5, 'rgba(' + rgb + ', ' + alpha.toFixed(3) + ')');
-        gradient.addColorStop(0.58, 'rgba(' + rgb + ', ' + (alpha * 0.45).toFixed(3) + ')');
-        gradient.addColorStop(1, 'rgba(' + rgb + ', 0)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(x - spread, 0, spread * 2, h * 0.92);
-      });
-      if (!reduce && !document.hidden) curtainFrame = requestAnimationFrame(draw);
-    }
-    var curtainFrame = 0;
-    resize();
-    window.addEventListener('resize', function () { resize(); if (reduce) draw(0); });
-    document.addEventListener('visibilitychange', function () {
-      cancelAnimationFrame(curtainFrame);
-      if (!document.hidden) curtainFrame = requestAnimationFrame(draw);
-    });
-    curtainFrame = requestAnimationFrame(function (now) {
-      if (!canvas.width) resize();
-      draw(now);
-    });
+
+  function icon(name) {
+    var paths = {
+      brand: '<path d="m8 5-5 7 5 7m8-14 5 7-5 7m-8-7 3 3 5-6"/>',
+      overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+      tests: '<path d="m9 11 2 2 4-4"/><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2"/>',
+      screenshots: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',
+      logs: '<path d="m5 6 4 4-4 4m7 3h7"/><rect x="2" y="2" width="20" height="20" rx="3"/>',
+      files: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm0 0v6h6M8 13h8m-8 4h5"/>',
+      folder: '<path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+      search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
+      clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      check: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+      alert: '<path d="m12 3 10 18H2Z M12 9v4m0 3v1"/>',
+      moon: '<path d="M21 13a9 9 0 0 1-10-10 9 9 0 1 0 10 10Z"/>',
+      arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
+    };
+    return '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (paths[name] || paths.tests) + '</svg>';
   }
 
-  function watchHeader() {
-    var rail = document.querySelector('.rail');
-    if (!rail) return;
-    rail.addEventListener('focusin', function () { rail.classList.remove('is-hidden'); });
-    var lastY = window.scrollY;
-    window.addEventListener('scroll', function () {
-      var y = window.scrollY;
-      var down = y > lastY + 6;
-      var up = y < lastY - 6;
-      if (y < 24) rail.classList.remove('is-hidden');
-      else if (down && !rail.contains(document.activeElement)) rail.classList.add('is-hidden');
-      else if (up) rail.classList.remove('is-hidden');
-      lastY = y;
-    }, { passive: true });
+  function syncTabOrientation() {
+    document.querySelector('.tabbar').setAttribute('aria-orientation', window.innerWidth <= 800 ? 'horizontal' : 'vertical');
+  }
+
+  function setRunState(node) {
+    node.dataset.status = data.status;
+    node.textContent = { passed: 'Run passed', failed: 'Run failed', timedout: 'Run timed out', interrupted: 'Run interrupted' }[data.status] || 'Run finished';
   }
 
   function companyName() {
@@ -183,18 +139,22 @@
     return allowed[data.accent] ? data.accent : 'green';
   }
 
-  function accentParts() {
-    var probe = document.createElement('span');
-    probe.style.color = 'var(--accent)';
-    document.body.appendChild(probe);
-    var color = getComputedStyle(probe).color;
-    probe.remove();
-    var parts = color.match(/\d+/g) || ['0', '255', '136'];
-    return parts.slice(0, 3).join(', ');
+  function readTheme() {
+    try {
+      var saved = localStorage.getItem('reborn-theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+    } catch (error) { /* Storage may be unavailable for local reports. */ }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    document.body.dataset.theme = theme;
+    document.getElementById('theme-toggle').setAttribute('aria-checked', theme === 'dark' ? 'true' : 'false');
   }
 
   function tabButton(id, label) {
-    return '<button id="tab-' + id + '" class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="false" aria-controls="panel-' + id + '">' + label + '</button>';
+    var count = id === 'tests' ? data.tests.length : null;
+    return '<button id="tab-' + id + '" class="tab" role="tab" type="button" data-tab="' + id + '" aria-selected="false" aria-controls="panel-' + id + '">' + icon(id) + '<span>' + label + '</span>' + (count === null ? '' : '<span class="nav-count" aria-hidden="true">' + count + '</span>') + '</button>';
   }
 
   function readRoute() {
@@ -216,6 +176,7 @@
   function showTab(tab, quiet) {
     if (TABS.indexOf(tab) === -1) tab = 'overview';
     state.tab = tab;
+    document.getElementById('page-name').textContent = tab === 'overview' ? 'Dashboard' : tab.charAt(0).toUpperCase() + tab.slice(1);
     document.querySelectorAll('[role="tab"]').forEach(function (button) {
       button.setAttribute('aria-selected', button.dataset.tab === tab ? 'true' : 'false');
       button.tabIndex = button.dataset.tab === tab ? 0 : -1;
@@ -254,44 +215,93 @@
     var host = document.getElementById('panel-overview');
     host.innerHTML = [
       '<header class="hero">',
-      '<div><h1 class="word" id="word"></h1><p class="product" id="product"></p><p class="summary" id="summary"></p></div>',
+      '<div><p class="dashboard-kicker">Run overview</p><h1 class="word">Dashboard</h1><p class="product" id="product"></p><p class="summary" id="summary"></p></div>',
       '<p class="run-state" id="run-state"></p>',
       '</header>',
+      '<p class="meta" id="meta"></p>',
       '<div id="errors"></div>',
-      '<dl class="info" id="info"></dl>',
-      '<section class="console">',
-      '<div class="console-body">',
-      '<p class="section-label">Results</p>',
-      '<div class="legend" id="legend"></div>',
-      '<div class="range-head">',
-      '<p class="section-label" id="range-label">Duration</p>',
-      '<div class="views" role="group" aria-label="Overview shape">',
-      '<button type="button" class="view" data-overview="chart">Chart</button>',
-      '<button type="button" class="view" data-overview="timeline">Timeline</button>',
-      '</div>',
-      '</div>',
-      '<p class="section-note" id="range-note"></p>',
-      '<div class="charts" id="duration"></div>',
+      '<div class="metric-grid" id="metrics"></div>',
+      '<div class="dashboard-grid">',
+      '<section class="dashboard-card result-card"><div class="card-heading"><h2>Test results</h2><span class="card-detail">This run</span></div>',
+      '<div class="result-body"><div class="result-ring" id="result-ring"><div><strong id="pass-percent"></strong><span>Passed</span></div></div>',
+      '<div class="legend" id="legend"></div></div><p class="card-note" id="result-note"></p></section>',
+      '<section class="dashboard-card console"><div class="console-body">',
+      '<div class="range-head"><h2 class="section-label" id="range-label">Duration</h2>',
+      '<div class="views" role="group" aria-label="Overview shape"><button type="button" class="view" data-overview="chart">Chart</button><button type="button" class="view" data-overview="timeline">Timeline</button></div></div>',
+      '<p class="section-note" id="range-note"></p><div class="charts" id="duration"></div>',
       '<div class="strip-window" id="strip-window"><div class="strip-scroll"><div class="strip" id="strip" role="group" aria-label="Tests by time"></div></div></div>',
+      '</div></section>',
+      '<section class="dashboard-card attention-card"><div class="card-heading"><h2>Needs attention</h2><button type="button" class="dashboard-link" data-go-tests>View all tests ' + icon('arrow') + '</button></div><div id="attention-list"></div></section>',
+      '<section class="dashboard-card environment-card"><div class="card-heading"><h2>Run details</h2>' + icon('folder') + '</div><dl class="run-details" id="run-details"></dl><dl class="info" id="info"></dl></section>',
       '</div>',
-      '</section>',
     ].join('');
-    var word = document.getElementById('word');
-    word.textContent = companyName();
-    var product = document.getElementById('product');
     var subtitle = typeof data.productSubtitle === 'string' ? data.productSubtitle.trim() : 'Test Automation';
-    if (subtitle) product.textContent = subtitle;
-    else product.hidden = true;
+    document.getElementById('product').textContent = subtitle;
+    document.getElementById('product').hidden = !subtitle;
     document.getElementById('summary').textContent = data.summary || '';
-    var runState = document.getElementById('run-state');
-    runState.dataset.status = data.status;
-    runState.textContent = { passed: 'Run passed', failed: 'Run failed', timedout: 'Run timed out', interrupted: 'Run interrupted' }[data.status] || 'Run finished';
+    fill(document.getElementById('meta'), metaBits().map(function (bit) { return el('span', null, [bit]); }));
+    setRunState(document.getElementById('run-state'));
+    paintDashboard();
     paintErrors();
     paintInfo();
     paintCounts(document.getElementById('legend'), false);
     paintDuration();
     paintStrip();
     applyOverview();
+  }
+
+  function paintDashboard() {
+    var counts = data.counts || {};
+    var total = data.tests.length;
+    var passed = counts.passed || 0;
+    var percent = total ? Math.round(passed / total * 100) : 0;
+    var problems = data.tests.filter(isProblem);
+    var metrics = [
+      ['tests', 'Total tests', String(total), 'Across ' + uniqueValues(function (test) { return [test.file]; }).length + ' test files', ''],
+      ['check', 'Pass rate', total ? percent + '%' : '—', passed + ' of ' + total + ' tests passed', 'positive'],
+      ['clock', 'Run duration', formatDuration(data.duration || 0), 'Wall time including retries', ''],
+      ['alert', 'Needs attention', String(problems.length), 'Failed, flaky or interrupted', problems.length ? 'warning' : 'positive'],
+    ];
+    fill(document.getElementById('metrics'), metrics.map(function (metric) {
+      var node = el('div', { class: 'metric ' + metric[4] }, [
+        el('div', { class: 'metric-label' }, [metric[1]]),
+        el('strong', { class: 'metric-value' }, [metric[2]]),
+        el('span', { class: 'metric-note' }, [metric[3]]),
+      ]);
+      node.querySelector('.metric-label').insertAdjacentHTML('beforeend', icon(metric[0]));
+      return node;
+    }));
+    document.getElementById('pass-percent').textContent = total ? percent + '%' : '—';
+    var colors = { passed: 'var(--pass)', failed: 'var(--fail)', timedOut: 'var(--fail)', flaky: 'var(--flaky)', skipped: 'var(--skip)', interrupted: 'var(--timeout)' };
+    var offset = 0;
+    var stops = [];
+    Object.keys(colors).forEach(function (status) {
+      var amount = counts[status] || 0;
+      if (!amount || !total) return;
+      var next = offset + amount / total * 100;
+      stops.push(colors[status] + ' ' + offset + '% ' + next + '%');
+      offset = next;
+    });
+    document.getElementById('result-ring').style.background = stops.length ? 'conic-gradient(' + stops.join(',') + ')' : 'var(--hairline)';
+    document.getElementById('result-note').textContent = 'Select a result to explore its tests. Pass rate includes skipped tests in the total.';
+    var attention = problems.slice(0, 5).map(function (test) {
+      return el('button', { type: 'button', class: 'attention-row open-test', 'data-id': test.id, 'data-attempt': String(failedAttempt(test)) }, [
+        el('span', { class: 'attention-status sw', 'data-status': test.status }, [statusLabel(test)]),
+        el('span', { class: 'attention-test' }, [el('strong', null, [test.title]), el('span', null, [test.file])]),
+        el('span', { class: 'attention-time' }, [formatDuration(test.duration)]),
+      ]);
+    });
+    if (!attention.length) attention.push(el('p', { class: 'empty' }, [total ? 'No tests need attention. Your run is looking good.' : 'No tests ran. Run your test suite to see results here.']));
+    if (problems.length > 5) attention.push(el('p', { class: 'card-note' }, ['Showing 5 of ' + problems.length + ' tests. View all tests to explore the rest.']));
+    fill(document.getElementById('attention-list'), attention);
+    var rows = [['Started', formatWhen(data.startTime)], ['Workers', String(data.workers || 0)], ['Screenshots', { off: 'Off', failure: 'On failure', last: 'Last step', steps: 'Every step' }[data.screenshots] || 'Off']];
+    if (data.showProjects === true && (data.projects || []).length) rows.push(['Projects', data.projects.join(', ')]);
+    if (data.shard) rows.push(['Shard', data.shard]);
+    var customLabels = (data.info || []).map(function (row) { return String(row.label).toLowerCase(); });
+    rows = rows.filter(function (row) { return customLabels.indexOf(row[0].toLowerCase()) === -1; });
+    fill(document.getElementById('run-details'), rows.map(function (row) {
+      return el('div', null, [el('dt', null, [row[0]]), el('dd', null, [row[1]])]);
+    }));
   }
 
   function paintInfo() {
@@ -367,7 +377,7 @@
       empty.setAttribute('cx', '110');
       empty.setAttribute('cy', '110');
       empty.setAttribute('r', '96');
-      empty.setAttribute('fill', 'rgba(255,255,255,0.08)');
+      empty.setAttribute('fill', 'var(--hairline)');
       svg.appendChild(empty);
       return svg;
     }
@@ -496,22 +506,9 @@
     var buttons = filters.map(function (filter) {
       return el('button', { class: 'count', type: 'button', 'data-status': filter[0], 'aria-pressed': 'false' }, [
         el('span', { class: 'n' }, [String(filter[2])]),
-        filter[1],
+        ' ' + filter[1],
       ]);
     });
-    if (host.id === 'legend') {
-      buttons.unshift(el('div', { class: 'count count-static' }, [
-        el('span', { class: 'n' }, [formatDuration(data.duration || 0)]),
-        'total',
-      ]));
-      buttons.forEach(function (button) {
-        if (button.classList.contains('count-static')) return;
-        var node = button.querySelector('.n');
-        var value = Number(node.textContent);
-        node.textContent = '0';
-        countUp(node, value, function (next) { return String(Math.round(next)); });
-      });
-    }
     var children = buttons;
     if (withFind) {
       children = buttons.concat([el('div', { class: 'find-wrap' }, [
@@ -611,33 +608,25 @@
     return Object.keys(seen).sort();
   }
 
+  function selectControl(id, label, choices, current) {
+    var select = el('select', { id: id, class: 'filter-select' }, choices.map(function (choice) {
+      return el('option', { value: choice[0] }, [choice[1]]);
+    }));
+    select.value = current || '';
+    return el('label', { class: 'filter-control', for: id }, [el('span', null, [label]), select]);
+  }
+
   function paintTags() {
     var host = document.getElementById('tags');
     if (!host) return;
     var tags = uniqueValues(function (test) { return (test.tags || []).filter(keptTag); });
     var projects = uniqueValues(function (test) { return test.project ? [test.project] : []; });
-    var nodes = [];
-    if (tags.length) {
-      nodes.push(el('span', { class: 'order-label' }, ['Tags']));
-      nodes.push(chip('tag-btn', '', 'All', state.tag || ''));
-      tags.forEach(function (tag) { nodes.push(chip('tag-btn', tag, tag, state.tag)); });
-    }
+    var nodes = [selectControl('tag-select', 'Tags', [['', 'All tags']].concat(tags.map(function (tag) { return [tag, tag]; })), state.tag)];
     if (data.showProjectFilter === true && projects.length > 1) {
-      nodes.push(el('span', { class: 'order-label' }, ['Project']));
-      nodes.push(chip('project-btn', '', 'All', state.projectFilter || ''));
-      projects.forEach(function (project) { nodes.push(chip('project-btn', project, project, state.projectFilter)); });
+      nodes.push(selectControl('project-select', 'Project', [['', 'All projects']].concat(projects.map(function (project) { return [project, project]; })), state.projectFilter));
     }
-    host.hidden = nodes.length === 0;
     fill(host, nodes);
-  }
-
-  function chip(className, value, label, current) {
-    return el('button', {
-      class: className,
-      type: 'button',
-      'data-value': value,
-      'aria-pressed': current === value ? 'true' : 'false',
-    }, [label]);
+    if (!tags.length) document.getElementById('tag-select').disabled = true;
   }
 
   function sortTests(tests) {
@@ -657,17 +646,10 @@
   function paintOrder() {
     var host = document.getElementById('order');
     if (!host) return;
-    var orders = [['grouped', 'Grouped'], ['slowest', 'Slowest'], ['fastest', 'Fastest'], ['started', 'Started']];
-    var nodes = [el('span', { class: 'order-label' }, ['Order'])].concat(orders.map(function (order) {
-      return el('button', {
-        class: 'order-btn',
-        type: 'button',
-        'data-order': order[0],
-        'aria-pressed': state.order === order[0] ? 'true' : 'false',
-      }, [order[1]]);
-    }));
+    var orders = [['grouped', 'Grouped'], ['slowest', 'Slowest first'], ['fastest', 'Fastest first'], ['started', 'Start time']];
+    var nodes = [selectControl('sort-select', 'Sort', orders, state.order)];
     if (state.band !== 'all') {
-      nodes.push(el('button', { class: 'band-clear', type: 'button', 'aria-pressed': 'true' }, [bandLabel(state.band)]));
+      nodes.push(el('button', { class: 'band-clear', type: 'button', 'aria-label': 'Clear duration filter: ' + bandLabel(state.band) }, [bandLabel(state.band), el('span', { 'aria-hidden': 'true' }, [' ×'])]));
     }
     fill(host, nodes);
   }
@@ -676,7 +658,7 @@
     if (built.tests) return;
     built.tests = true;
     var host = document.getElementById('panel-tests');
-    host.innerHTML = '<h2 class="visually-hidden">Tests</h2><div class="legend" id="test-tools"></div><div class="tags" id="tags"></div><div class="order" id="order"></div><div class="list-summary" id="list-summary"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
+    host.innerHTML = '<div class="page-heading"><h2>Tests</h2><p>Explore results, retries and the steps behind every test.</p></div><div class="legend" id="test-tools"></div><div class="filter-toolbar"><div class="tags" id="tags"></div><div class="order" id="order"></div></div><div class="list-summary" id="list-summary"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
     paintCounts(document.getElementById('test-tools'), true);
     paintTags();
     paintOrder();
@@ -1070,6 +1052,17 @@
         document.getElementById('find').focus();
         return;
       }
+      if (target.closest('#theme-toggle')) {
+        var theme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+        applyTheme(theme);
+        try { localStorage.setItem('reborn-theme', theme); } catch (error) { /* Theme still works without storage. */ }
+        return;
+      }
+      if (target.closest('[data-go-tests]')) {
+        showTab('tests');
+        document.getElementById('find').focus();
+        return;
+      }
       var tab = target.closest('.tab');
       if (tab) {
         showTab(tab.dataset.tab);
@@ -1113,35 +1106,6 @@
         state.band = 'all';
         keepSelectionInFilter();
         paintDuration();
-        paintOrder();
-        paintList();
-        paintDetail();
-        return;
-      }
-      var tag = target.closest('.tag-btn');
-      if (tag) {
-        state.tag = tag.dataset.value || null;
-        state.listLimit = 200;
-        keepSelectionInFilter();
-        paintTags();
-        paintList();
-        paintDetail();
-        return;
-      }
-      var projectButton = target.closest('.project-btn');
-      if (projectButton) {
-        state.projectFilter = projectButton.dataset.value || null;
-        state.listLimit = 200;
-        keepSelectionInFilter();
-        paintTags();
-        paintList();
-        paintDetail();
-        return;
-      }
-      var order = target.closest('.order-btn');
-      if (order) {
-        state.order = order.dataset.order || 'grouped';
-        keepSelectionInFilter();
         paintOrder();
         paintList();
         paintDetail();
@@ -1209,6 +1173,19 @@
       if (shot) openShot(shot.dataset.src, shot.dataset.alt || 'Screenshot');
     });
 
+    app.addEventListener('change', function (event) {
+      var control = event.target;
+      if (!control || ['tag-select', 'project-select', 'sort-select'].indexOf(control.id) === -1) return;
+      if (control.id === 'tag-select') state.tag = control.value || null;
+      if (control.id === 'project-select') state.projectFilter = control.value || null;
+      if (control.id === 'sort-select') state.order = control.value || 'grouped';
+      state.listLimit = 200;
+      keepSelectionInFilter();
+      paintList();
+      paintDetail();
+      markStrip();
+    });
+
     app.addEventListener('input', function (event) {
       if (!event.target) return;
       if (event.target.id === 'find') {
@@ -1231,6 +1208,7 @@
 
     document.addEventListener('keydown', function (event) {
       if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || document.querySelector('dialog[open]')) return;
+      if (event.target instanceof HTMLSelectElement) return;
       var typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target.isContentEditable;
       if (typing) {
         if (event.key === 'Escape') {
@@ -1262,12 +1240,12 @@
         if (find) find.focus();
         return;
       }
-      if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'Home' || event.key === 'End') && event.target.closest && event.target.closest('.tabbar')) {
+      if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft' || event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') && event.target.closest && event.target.closest('.tabbar')) {
         event.preventDefault();
         var index = TABS.indexOf(state.tab);
         if (event.key === 'Home') index = 0;
         else if (event.key === 'End') index = TABS.length - 1;
-        else if (event.key === 'ArrowRight') index = (index + 1) % TABS.length;
+        else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') index = (index + 1) % TABS.length;
         else index = (index - 1 + TABS.length) % TABS.length;
         showTab(TABS[index]);
         var next = document.querySelector('.tab[data-tab="' + TABS[index] + '"]');

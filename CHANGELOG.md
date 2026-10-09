@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.4
+
+- Refresh the report UI with a persistent sidebar, dashboard overview, and clearer test exploration.
+- Add Tags and Sort dropdowns, remembered light and dark themes, improved filter controls, and responsive long-name handling.
+
 ## 0.2.3
 
 - `steps: 'user'` leaves expectations and `test.attach` calls out of the step tree.

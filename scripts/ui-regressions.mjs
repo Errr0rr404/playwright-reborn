@@ -17,6 +17,10 @@ export async function runUiChecks(reportHtml) {
   const query = selector => doc.querySelector(selector);
   const click = selector => { const node = query(selector); assert(node, `Missing ${selector}`); node.click(); };
   const key = (node, value, extra = {}) => node.dispatchEvent(new win.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true, ...extra }));
+  const select = (selector, value) => {
+    const node = query(selector); assert(node, `Missing ${selector}`); node.focus(); node.value = value;
+    node.dispatchEvent(new win.Event('change', { bubbles: true }));
+  };
   const input = (selector, value) => {
     const node = query(selector); node.focus(); node.value = value;
     node.dispatchEvent(new win.Event('input', { bubbles: true }));
@@ -50,6 +54,34 @@ export async function runUiChecks(reportHtml) {
   const clone = () => JSON.parse(JSON.stringify(base));
 
   await load();
+  await check('Dashboard metrics and attention links reflect the run', async () => {
+    assert(query('.word').textContent === 'Dashboard', 'Dashboard heading is missing');
+    const metrics = [...doc.querySelectorAll('.metric-value')].map(node => node.textContent);
+    const problems = base.tests.filter(test => ['failed', 'timedOut', 'interrupted', 'flaky'].includes(test.status));
+    assert(metrics[0] === String(base.tests.length), 'Total tests is incorrect');
+    assert(metrics[1] === Math.round(base.counts.passed / base.tests.length * 100) + '%', 'Pass rate is incorrect');
+    assert(metrics[3] === String(problems.length), 'Attention count is incorrect');
+    const opener = query('.attention-row'); assert(opener, 'Attention links are missing');
+    const selected = base.tests.find(test => test.id === opener.dataset.id);
+    opener.click();
+    assert(query('#detail h2').textContent === selected.title, 'Attention link opened the wrong test');
+    click('[data-tab="overview"]');
+  });
+  await check('Sidebar stays visible and vertical navigation works', async () => {
+    const rail = query('.rail');
+    assert(query('.tabbar').getAttribute('aria-orientation') === 'vertical', 'Missing sidebar orientation');
+    const before = rail.getBoundingClientRect().top;
+    win.scrollTo(0, 500);
+    await new Promise(resolve => win.requestAnimationFrame(resolve));
+    assert(Math.abs(rail.getBoundingClientRect().top - before) < 1, 'Sidebar moved out of view');
+    win.scrollTo(0, 0);
+    const tab = query('[data-tab="overview"]'); tab.focus(); key(tab, 'ArrowDown');
+    assert(query('[data-tab="tests"]').getAttribute('aria-selected') === 'true', 'Vertical navigation failed');
+    click('[data-tab="overview"]');
+    assert(!query('.search-jump'), 'Removed search button is still present');
+    key(doc.body, '/');
+    assert(doc.activeElement.id === 'find', 'Search shortcut did not focus the search');
+  });
   await check('All report pages render without script errors', async () => {
     for (const tab of ['overview', 'tests', 'screenshots', 'logs', 'files']) {
       click(`[data-tab="${tab}"]`);
@@ -89,7 +121,7 @@ export async function runUiChecks(reportHtml) {
   });
   await check('Duration filters exclude skipped tests and use slowest ordering', async () => {
     click('[data-tab="overview"]'); click('[data-band="under1"]');
-    assert(query('[data-order="slowest"]').getAttribute('aria-pressed') === 'true', 'Wrong order');
+    assert(query('#sort-select').value === 'slowest', 'Wrong order');
     assert(!query('#tests .row[data-status="skipped"]'), 'Skipped test entered duration filter');
     click('.reset-filters');
   });
@@ -131,7 +163,7 @@ export async function runUiChecks(reportHtml) {
   await check('A project named all can be filtered independently', async () => {
     const data = clone(); data.showProjects = true; data.showProjectFilter = true;
     data.tests[0].project = 'all';
-    await load(data); click('[data-tab="tests"]'); click('.project-btn[data-value="all"]');
+    await load(data); click('[data-tab="tests"]'); select('#project-select', 'all');
     assert(doc.querySelectorAll('#tests .row').length === 1, 'Project all acted as a reset');
     click('.reset-filters'); assert(doc.querySelectorAll('#tests .row').length === base.tests.length, 'Project filter did not clear');
   });
@@ -150,8 +182,8 @@ export async function runUiChecks(reportHtml) {
     const data = clone(); data.tests[0].file = '__proto__'; data.tests[0].tags = ['__proto__', 'constructor'];
     await load(data); click('[data-tab="tests"]');
     assert(doc.querySelectorAll('#tests .row').length === base.tests.length, 'Grouping lost tests');
-    assert(query('.tag-btn[data-value="__proto__"]'), 'Tag disappeared');
-    click('.tag-btn[data-value="__proto__"]');
+    assert([...query('#tag-select').options].some(option => option.value === '__proto__'), 'Tag disappeared');
+    select('#tag-select', '__proto__');
     assert(doc.querySelectorAll('#tests .row').length === 1, 'Tag filter failed');
   });
   await check('Hidden pages ignore unavailable number shortcuts', async () => {
@@ -183,17 +215,58 @@ export async function runUiChecks(reportHtml) {
     click('#show-rest'); assert(doc.querySelectorAll('#tests .row').length === 400, 'More button did not paginate');
     click('#show-rest'); assert(doc.querySelectorAll('#tests .row').length === 450, 'Final batch failed');
   });
+  await check('Tag and sort dropdowns share a row, preserve focus and combine filters', async () => {
+    await load(); click('[data-tab="tests"]');
+    const tag = base.tests.flatMap(test => test.tags || []).find(tag => [...query('#tag-select').options].some(option => option.value === tag));
+    assert(tag, 'Demo has no selectable tag');
+    const tagsTop = query('#tag-select').getBoundingClientRect().top;
+    assert(Math.abs(tagsTop - query('#sort-select').getBoundingClientRect().top) < 1, 'Tags and Sort are not aligned');
+    select('#tag-select', tag);
+    assert(doc.activeElement.id === 'tag-select', 'Tag dropdown lost focus');
+    assert(doc.querySelectorAll('#tests .row').length === base.tests.filter(test => test.tags.includes(tag)).length, 'Tag filtering failed');
+    select('#sort-select', 'slowest');
+    const expected = base.tests.filter(test => test.tags.includes(tag)).sort((a, b) => b.duration - a.duration || a.title.localeCompare(b.title));
+    assert(query('#tests .row').dataset.id === expected[0].id, 'Sort and tag filters did not combine');
+    assert(doc.activeElement.id === 'sort-select', 'Sort dropdown lost focus');
+    key(query('#sort-select'), 'Escape');
+    assert(query('#sort-select').value === 'slowest', 'Escape cleared sort');
+    click('.reset-filters');
+    assert(query('#tag-select').value === '', 'Clear filters left a stale tag');
+    assert(query('#sort-select').value === 'slowest', 'Clearing filters changed sort');
+  });
+  await check('Theme switching works on every page and preserves test filters', async () => {
+    await load(); click('[data-tab="tests"]'); select('#sort-select', 'fastest');
+    const first = query('#tests .row').dataset.id;
+    if (doc.body.dataset.theme !== 'light') click('#theme-toggle');
+    const lightSurface = win.getComputedStyle(query('.rail')).backgroundColor;
+    click('#theme-toggle');
+    assert(doc.body.dataset.theme === 'dark' && query('#theme-toggle').getAttribute('aria-checked') === 'true', 'Dark theme did not activate');
+    assert(win.getComputedStyle(query('.rail')).backgroundColor !== lightSurface, 'Dark palette did not change the surface');
+    for (const tab of ['overview', 'screenshots', 'logs', 'files', 'tests']) {
+      click(`[data-tab="${tab}"]`);
+      assert(doc.body.dataset.theme === 'dark', 'Theme changed during navigation');
+    }
+    assert(query('#sort-select').value === 'fastest' && query('#tests .row').dataset.id === first, 'Theme switching changed test ordering');
+    click('#theme-toggle');
+    assert(doc.body.dataset.theme === 'light' && query('#theme-toggle').getAttribute('aria-checked') === 'false', 'Light theme did not restore');
+    assert(win.__errors.length === 0, win.__errors.join(', '));
+  });
   await check('Long names fit mobile on every report page', async () => {
     const data = clone(); data.company = 'Company'.repeat(18);
     data.info = [{ label: 'Base URL', value: 'https://example.test/' + 'segment'.repeat(30) }];
     data.tests[0].title = 'LongTestName'.repeat(20); data.tests[0].file = 'LongFileName'.repeat(25);
     for (const width of [320, 390, 768]) {
     await load(data, width);
+    assert(query('.tabbar').getAttribute('aria-orientation') === 'horizontal', 'Mobile tab orientation is incorrect');
+    assert(query('#theme-toggle').getAttribute('aria-label') === 'Dark mode', 'Theme switch has no accessible label');
+    for (const theme of ['light', 'dark']) {
+    if (doc.body.dataset.theme !== theme) click('#theme-toggle');
     for (const tab of ['overview', 'tests', 'screenshots', 'logs', 'files']) {
       click(`[data-tab="${tab}"]`);
       assert(doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1, `${tab} overflows by ${doc.documentElement.scrollWidth - doc.documentElement.clientWidth}px`);
     }
     assert(win.__errors.length === 0, win.__errors.join(', '));
+    }
     }
   });
   if (frame) frame.remove();

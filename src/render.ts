@@ -32,7 +32,7 @@ export function renderHtml(json: string, assets?: { css: string; js: string }): 
 <title>Report</title>
 ${style}
 </head>
-<body style="margin:0;background:#080808;color:#f0f0f0">
+<body style="margin:0;background:#f3f7fd;color:#17324f">
 <div class="light"></div>
 <a class="skip" href="#tests">Skip to tests</a>
 <main class="page" id="app"></main>
