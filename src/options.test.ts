@@ -44,7 +44,7 @@ describe('parseOptions', () => {
       showProjects: false,
       showProjectFilter: false,
       commitShort: true,
-      chartStyle: 'both',
+      chartStyle: 'bar',
       ignoreTags: '^@?HC2T-',
     });
   });

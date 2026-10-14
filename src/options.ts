@@ -98,7 +98,7 @@ export function parseOptions(options: RebornOptions = {}): ParsedOptions {
   if (!OVERVIEWS.has(overview)) {
     throw new Error('Reborn overview must be "chart" or "timeline".');
   }
-  const chartStyle = options.chartStyle ?? 'both';
+  const chartStyle = options.chartStyle ?? 'bar';
   if (!CHARTS.has(chartStyle)) {
     throw new Error('Reborn chartStyle must be "pie", "bar", or "both".');
   }

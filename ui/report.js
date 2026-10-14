@@ -51,17 +51,17 @@
     '<aside class="rail">',
     '<div class="sidebar-brand">' + icon('brand') + '<span>Reborn<span class="brand-caption">Test reports</span></span></div>',
     '<div class="project-card">' + icon('folder') + '<div><span class="project-caption">Workspace</span><strong id="workspace-name"></strong></div></div>',
-    '<p class="nav-caption">Run workspace</p>',
+    '<p class="nav-caption">Report pages</p>',
     '<div class="tabbar" role="tablist" aria-label="Report" aria-orientation="vertical">',
 
     TABS.map(function (id) {
-      return tabButton(id, id === 'overview' ? 'Dashboard' : id.charAt(0).toUpperCase() + id.slice(1));
+      return tabButton(id, id.charAt(0).toUpperCase() + id.slice(1));
     }).join(''),
     '</div>',
     '<div class="sidebar-bottom"><p class="nav-caption">Current run</p><p class="sidebar-state run-state" id="sidebar-state"></p><p class="sidebar-note">Completed <span id="sidebar-time"></span></p><div class="keyboard-hint"><kbd>/</kbd><span>Find a test</span></div></div>',
     '</aside>',
     '<div class="stage">',
-    '<header class="workspace-bar"><div class="breadcrumb"><span id="breadcrumb-company"></span><span class="breadcrumb-separator">/</span><strong id="page-name">Dashboard</strong></div><button class="theme-toggle" id="theme-toggle" type="button" role="switch" aria-checked="false" aria-label="Dark mode">' + icon('moon') + '<span>Dark mode</span><span class="theme-switch" aria-hidden="true"></span></button></header>',
+    '<header class="workspace-bar"><div class="breadcrumb"><span id="breadcrumb-company"></span><span class="breadcrumb-separator">/</span><strong id="page-name">Overview</strong></div><button class="theme-toggle" id="theme-toggle" type="button" role="switch" aria-checked="false" aria-label="Dark mode">' + icon('moon') + '<span>Dark mode</span><span class="theme-switch" aria-hidden="true"></span></button></header>',
     '<div class="report-content">',
     '<div id="panel-overview" role="tabpanel"></div>',
     '<div id="panel-tests" role="tabpanel" hidden></div>',
@@ -83,8 +83,8 @@
   setRunState(document.getElementById('sidebar-state'));
   var footBits = [];
   if (data.showCredit === true) footBits.push(el('span', null, ['Open source by World of Z']));
-  footBits.push(el('span', null, [formatWhen(data.generatedAt)]));
-  footBits.push(el('span', null, ['Keys 1 onward switch pages. Press / to find a test.']));
+  footBits.push(el('span', null, ['Generated ' + formatWhen(data.generatedAt)]));
+  footBits.push(el('span', null, ['Use 1–' + TABS.length + ' to switch pages, or / to find a test.']));
   fill(document.getElementById('foot'), footBits);
   var BANDS = [
     ['under1', 'Under 1 minute'],
@@ -121,12 +121,16 @@
   }
 
   function syncTabOrientation() {
-    document.querySelector('.tabbar').setAttribute('aria-orientation', window.innerWidth <= 800 ? 'horizontal' : 'vertical');
+    document.querySelector('.tabbar').setAttribute('aria-orientation', window.innerWidth <= 1000 ? 'horizontal' : 'vertical');
   }
 
   function setRunState(node) {
     node.dataset.status = data.status;
     node.textContent = { passed: 'Run passed', failed: 'Run failed', timedout: 'Run timed out', interrupted: 'Run interrupted' }[data.status] || 'Run finished';
+    if (data.status === 'passed' && !countedTests().length) {
+      node.dataset.status = 'skipped';
+      node.textContent = 'No tests ran';
+    }
   }
 
   function companyName() {
@@ -169,14 +173,15 @@
   }
 
   function initialFailure() {
-    var problem = data.tests.find(isProblem);
+    var problem = data.tests.find(function (test) { return isProblem(test) && test.status !== 'flaky'; }) || data.tests.find(isProblem);
     return problem ? problem.id : (data.tests[0] && data.tests[0].id) || null;
   }
 
   function showTab(tab, quiet) {
     if (TABS.indexOf(tab) === -1) tab = 'overview';
+    var changed = state.tab !== tab;
     state.tab = tab;
-    document.getElementById('page-name').textContent = tab === 'overview' ? 'Dashboard' : tab.charAt(0).toUpperCase() + tab.slice(1);
+    document.getElementById('page-name').textContent = tab.charAt(0).toUpperCase() + tab.slice(1);
     document.querySelectorAll('[role="tab"]').forEach(function (button) {
       button.setAttribute('aria-selected', button.dataset.tab === tab ? 'true' : 'false');
       button.tabIndex = button.dataset.tab === tab ? 0 : -1;
@@ -187,18 +192,13 @@
       panel.hidden = !on;
       panel.setAttribute('aria-labelledby', 'tab-' + name);
       panel.classList.toggle('panel', true);
-      if (on && !quiet && !reduce) {
-        panel.classList.remove('panel-enter');
-        void panel.offsetWidth;
-        panel.classList.add('panel-enter');
-      }
     });
     if (tab === 'tests') ensureTests();
     if (tab === 'screenshots') ensureShots();
     if (tab === 'logs') ensureLogs();
     if (tab === 'files') ensureFiles();
     writeHash(!quiet);
-
+    if (changed && !quiet) window.scrollTo({ top: 0 });
   }
 
   function writeHash(push) {
@@ -215,30 +215,30 @@
     var host = document.getElementById('panel-overview');
     host.innerHTML = [
       '<header class="hero">',
-      '<div><p class="dashboard-kicker">Run overview</p><h1 class="word">Dashboard</h1><p class="product" id="product"></p><p class="summary" id="summary"></p></div>',
+      '<div><h1 class="word">Run overview</h1><p class="product" id="product"></p><p class="summary" id="summary"></p></div>',
       '<p class="run-state" id="run-state"></p>',
       '</header>',
       '<p class="meta" id="meta"></p>',
       '<div id="errors"></div>',
       '<div class="metric-grid" id="metrics"></div>',
       '<div class="dashboard-grid">',
-      '<section class="dashboard-card result-card"><div class="card-heading"><h2>Test results</h2><span class="card-detail">This run</span></div>',
+      '<section class="dashboard-card attention-card"><div class="card-heading"><h2>Needs attention</h2><button type="button" class="dashboard-link" data-go-tests>View all tests</button></div><div id="attention-list"></div></section>',
+      '<section class="dashboard-card result-card"><div class="card-heading"><h2>Test results</h2></div>',
       '<div class="result-body"><div class="result-ring" id="result-ring"><div><strong id="pass-percent"></strong><span>Passed</span></div></div>',
       '<div class="legend" id="legend"></div></div><p class="card-note" id="result-note"></p></section>',
       '<section class="dashboard-card console"><div class="console-body">',
       '<div class="range-head"><h2 class="section-label" id="range-label">Duration</h2>',
-      '<div class="views" role="group" aria-label="Overview shape"><button type="button" class="view" data-overview="chart">Chart</button><button type="button" class="view" data-overview="timeline">Timeline</button></div></div>',
+      '<div class="views" role="group" aria-label="Test duration view"><button type="button" class="view" data-overview="chart">Chart</button><button type="button" class="view" data-overview="timeline">Timeline</button></div></div>',
       '<p class="section-note" id="range-note"></p><div class="charts" id="duration"></div>',
       '<div class="strip-window" id="strip-window"><div class="strip-scroll"><div class="strip" id="strip" role="group" aria-label="Tests by time"></div></div></div>',
       '</div></section>',
-      '<section class="dashboard-card attention-card"><div class="card-heading"><h2>Needs attention</h2><button type="button" class="dashboard-link" data-go-tests>View all tests ' + icon('arrow') + '</button></div><div id="attention-list"></div></section>',
       '<section class="dashboard-card environment-card"><div class="card-heading"><h2>Run details</h2>' + icon('folder') + '</div><dl class="run-details" id="run-details"></dl><dl class="info" id="info"></dl></section>',
       '</div>',
     ].join('');
     var subtitle = typeof data.productSubtitle === 'string' ? data.productSubtitle.trim() : 'Test Automation';
     document.getElementById('product').textContent = subtitle;
     document.getElementById('product').hidden = !subtitle;
-    document.getElementById('summary').textContent = data.summary || '';
+    document.getElementById('summary').textContent = overviewSummary();
     fill(document.getElementById('meta'), metaBits().map(function (bit) { return el('span', null, [bit]); }));
     setRunState(document.getElementById('run-state'));
     paintDashboard();
@@ -254,13 +254,17 @@
     var counts = data.counts || {};
     var total = data.tests.length;
     var passed = counts.passed || 0;
-    var percent = total ? Math.round(passed / total * 100) : 0;
-    var problems = data.tests.filter(isProblem);
+    var executed = countedTests().length;
+    var percent = executed ? Math.round(passed / executed * 100) : 0;
+    var problems = data.tests.filter(isProblem).sort(function (a, b) {
+      return Number(a.status === 'flaky') - Number(b.status === 'flaky');
+    });
+    var fileCount = uniqueValues(function (test) { return [test.file]; }).length;
     var metrics = [
-      ['tests', 'Total tests', String(total), 'Across ' + uniqueValues(function (test) { return [test.file]; }).length + ' test files', ''],
-      ['check', 'Pass rate', total ? percent + '%' : '—', passed + ' of ' + total + ' tests passed', 'positive'],
-      ['clock', 'Run duration', formatDuration(data.duration || 0), 'Wall time including retries', ''],
-      ['alert', 'Needs attention', String(problems.length), 'Failed, flaky or interrupted', problems.length ? 'warning' : 'positive'],
+      ['tests', 'Total tests', String(total), 'Across ' + fileCount + (fileCount === 1 ? ' test file' : ' test files'), ''],
+      ['check', 'Passed', String(passed), 'Without needing a retry', executed && passed === executed ? 'positive' : ''],
+      ['clock', 'Run duration', formatDuration(data.duration || 0), 'Total time, including retries', ''],
+      ['alert', 'Needs attention', String(problems.length), problems.length ? 'Failed or did not pass first time' : 'No test issues', problems.length ? 'warning' : 'positive'],
     ];
     fill(document.getElementById('metrics'), metrics.map(function (metric) {
       var node = el('div', { class: 'metric ' + metric[4] }, [
@@ -271,27 +275,32 @@
       node.querySelector('.metric-label').insertAdjacentHTML('beforeend', icon(metric[0]));
       return node;
     }));
-    document.getElementById('pass-percent').textContent = total ? percent + '%' : '—';
-    var colors = { passed: 'var(--pass)', failed: 'var(--fail)', timedOut: 'var(--fail)', flaky: 'var(--flaky)', skipped: 'var(--skip)', interrupted: 'var(--timeout)' };
+    document.getElementById('pass-percent').textContent = executed ? percent + '%' : '—';
+    var colors = { passed: 'var(--pass)', failed: 'var(--fail)', timedOut: 'var(--fail)', flaky: 'var(--flaky)', interrupted: 'var(--interrupted)' };
     var offset = 0;
     var stops = [];
     Object.keys(colors).forEach(function (status) {
       var amount = counts[status] || 0;
-      if (!amount || !total) return;
-      var next = offset + amount / total * 100;
+      if (!amount || !executed) return;
+      var next = offset + amount / executed * 100;
       stops.push(colors[status] + ' ' + offset + '% ' + next + '%');
       offset = next;
     });
     document.getElementById('result-ring').style.background = stops.length ? 'conic-gradient(' + stops.join(',') + ')' : 'var(--hairline)';
-    document.getElementById('result-note').textContent = 'Select a result to explore its tests. Pass rate includes skipped tests in the total.';
+    var resultNote = executed ? passed + ' of ' + executed + ' tests passed without a retry. Skipped tests are excluded from the percentage.' : 'No tests ran, so there is no pass rate.';
+    if (counts.flaky) resultNote += ' Flaky means passed after a retry.';
+    document.getElementById('result-note').textContent = resultNote;
     var attention = problems.slice(0, 5).map(function (test) {
-      return el('button', { type: 'button', class: 'attention-row open-test', 'data-id': test.id, 'data-attempt': String(failedAttempt(test)) }, [
+      return el('button', { type: 'button', class: 'attention-row open-test', 'data-id': test.id, 'data-attempt': String(failedAttempt(test)), 'data-open-pane': defaultPane(test) }, [
         el('span', { class: 'attention-status sw', 'data-status': test.status }, [statusLabel(test)]),
         el('span', { class: 'attention-test' }, [el('strong', null, [test.title]), el('span', null, [test.file])]),
         el('span', { class: 'attention-time' }, [formatDuration(test.duration)]),
       ]);
     });
-    if (!attention.length) attention.push(el('p', { class: 'empty' }, [total ? 'No tests need attention. Your run is looking good.' : 'No tests ran. Run your test suite to see results here.']));
+    if (!attention.length) {
+      var message = !executed ? 'No tests ran. Check the suite configuration and any run errors.' : data.status !== 'passed' ? 'The run did not finish successfully. Check the run errors above.' : 'No tests need attention.';
+      attention.push(el('p', { class: 'empty' }, [message]));
+    }
     if (problems.length > 5) attention.push(el('p', { class: 'card-note' }, ['Showing 5 of ' + problems.length + ' tests. View all tests to explore the rest.']));
     fill(document.getElementById('attention-list'), attention);
     var rows = [['Started', formatWhen(data.startTime)], ['Workers', String(data.workers || 0)], ['Screenshots', { off: 'Off', failure: 'On failure', last: 'Last step', steps: 'Every step' }[data.screenshots] || 'Off']];
@@ -302,6 +311,13 @@
     fill(document.getElementById('run-details'), rows.map(function (row) {
       return el('div', null, [el('dt', null, [row[0]]), el('dd', null, [row[1]])]);
     }));
+  }
+
+  function overviewSummary() {
+    var counts = data.counts || {};
+    var labels = [['passed', 'passed'], ['failed', 'failed'], ['timedOut', 'timed out'], ['interrupted', 'interrupted'], ['flaky', 'flaky'], ['skipped', 'skipped']];
+    var parts = labels.filter(function (item) { return counts[item[0]] > 0; }).map(function (item) { return counts[item[0]] + ' ' + item[1]; });
+    return parts.length ? parts.join(', ') + '.' : 'No tests ran.';
   }
 
   function paintInfo() {
@@ -371,7 +387,7 @@
     svg.setAttribute('viewBox', '0 0 220 220');
     svg.setAttribute('class', 'pie');
     svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', 'Tests by duration');
+    svg.setAttribute('aria-label', 'Tests by duration: ' + BANDS.map(function (band) { return band[1] + ': ' + counts[band[0]]; }).join(', '));
     if (!total) {
       var empty = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
       empty.setAttribute('cx', '110');
@@ -454,6 +470,7 @@
       })));
     }
     fill(host, nodes);
+    host.classList.toggle('bar-only', style === 'bar');
     host.querySelectorAll('.swatch').forEach(function (swatch, index) {
       swatch.style.background = CHART_COLORS[index % CHART_COLORS.length];
     });
@@ -470,9 +487,9 @@
     if (label) label.textContent = chart ? 'Duration' : 'Timeline';
     if (note) {
       var text = chart
-        ? 'How many tests landed in each range. The time includes retries.'
-        : 'Tests in the order they started. The bar is how long each one took.';
-      if (chart && data.counts && data.counts.skipped) text += ' Skipped tests are not in these counts.';
+        ? 'Select a time range to see its tests. Durations include retries.'
+        : 'Tests in the order they started. Select a test to see its details.';
+      if (chart && data.counts && data.counts.skipped) text += ' Skipped tests are excluded.';
       note.textContent = text;
     }
     document.querySelectorAll('.view').forEach(function (button) {
@@ -484,10 +501,10 @@
     var host = document.getElementById('errors');
     var items = [];
     (data.errors || []).forEach(function (error) {
-      items.push(el('div', { class: 'banner' }, [el('pre', null, [error.message || 'Runner error'])]));
+      items.push(el('div', { class: 'banner' }, [el('strong', null, ['Run error']), el('pre', null, [error.message || 'The test runner could not complete the run.'])]));
     });
     (data.warnings || []).forEach(function (warning) {
-      items.push(el('div', { class: 'banner' }, [el('p', null, [warning])]));
+      items.push(el('div', { class: 'banner warning-banner' }, [el('strong', null, ['Report warning']), el('p', null, [warning])]));
     });
     fill(host, items);
   }
@@ -504,7 +521,7 @@
     if (counts.timedOut) filters.push(['timedOut', 'timed out', counts.timedOut]);
     if (counts.interrupted) filters.push(['interrupted', 'interrupted', counts.interrupted]);
     var buttons = filters.map(function (filter) {
-      return el('button', { class: 'count', type: 'button', 'data-status': filter[0], 'aria-pressed': 'false' }, [
+      return el('button', { class: 'count', type: 'button', 'data-status': filter[0], 'aria-pressed': 'false', title: filter[0] === 'flaky' ? 'Passed after failing an earlier attempt' : 'Show ' + filter[1] }, [
         el('span', { class: 'n' }, [String(filter[2])]),
         ' ' + filter[1],
       ]);
@@ -571,13 +588,6 @@
     markStrip();
   }
 
-  function canvasColor(status) {
-    var accent = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#00ff88';
-    if (status === 'failed' || status === 'timedOut' || status === 'flaky') return accent;
-    if (status === 'passed') return 'rgba(255, 255, 255, 0.22)';
-    return '#1a1a1a';
-  }
-
   function markStrip() {
     var visible = Object.create(null);
     filteredTests().forEach(function (test) { visible[test.id] = true; });
@@ -609,7 +619,7 @@
   }
 
   function selectControl(id, label, choices, current) {
-    var select = el('select', { id: id, class: 'filter-select' }, choices.map(function (choice) {
+    var select = el('select', { id: id, class: 'filter-select', 'aria-label': label }, choices.map(function (choice) {
       return el('option', { value: choice[0] }, [choice[1]]);
     }));
     select.value = current || '';
@@ -646,7 +656,7 @@
   function paintOrder() {
     var host = document.getElementById('order');
     if (!host) return;
-    var orders = [['grouped', 'Grouped'], ['slowest', 'Slowest first'], ['fastest', 'Fastest first'], ['started', 'Start time']];
+    var orders = [['grouped', 'By file'], ['slowest', 'Slowest first'], ['fastest', 'Fastest first'], ['started', 'Start time']];
     var nodes = [selectControl('sort-select', 'Sort', orders, state.order)];
     if (state.band !== 'all') {
       nodes.push(el('button', { class: 'band-clear', type: 'button', 'aria-label': 'Clear duration filter: ' + bandLabel(state.band) }, [bandLabel(state.band), el('span', { 'aria-hidden': 'true' }, [' ×'])]));
@@ -658,7 +668,7 @@
     if (built.tests) return;
     built.tests = true;
     var host = document.getElementById('panel-tests');
-    host.innerHTML = '<div class="page-heading"><h2>Tests</h2><p>Explore results, retries and the steps behind every test.</p></div><div class="legend" id="test-tools"></div><div class="filter-toolbar"><div class="tags" id="tags"></div><div class="order" id="order"></div></div><div class="list-summary" id="list-summary"></div><div class="split"><div id="tests"></div><section class="detail" id="detail"></section></div>';
+    host.innerHTML = '<div class="page-heading"><h1>Tests</h1><p>Select a test to see what happened and why.</p></div><div class="legend" id="test-tools"></div><div class="filter-toolbar"><div class="tags" id="tags"></div><div class="order" id="order"></div></div><div class="list-summary" id="list-summary"></div><div class="split"><div id="tests" role="region" aria-label="Test list" tabindex="0"></div><section class="detail" id="detail" aria-label="Selected test"></section></div>';
     paintCounts(document.getElementById('test-tools'), true);
     paintTags();
     paintOrder();
@@ -680,14 +690,17 @@
       fill(host, [el('p', { class: 'empty' }, [data.tests.length ? 'No tests match. Clear filters or try another search.' : 'No tests ran.'])]);
       return;
     }
+    var shownIds = new Set();
     if (state.order !== 'grouped') {
       var sorted = sortTests(tests);
       var shown = sorted.slice(0, state.listLimit);
-      var flat = shown.map(function (test) { return rowButton(test, true); });
+      var flat = shown.map(function (test) { shownIds.add(test.id); return rowButton(test, true); });
+      pinSelection(flat, shownIds, tests);
       if (shown.length < sorted.length) {
         flat.push(el('button', { class: 'more', type: 'button', id: 'show-rest' }, ['Show more tests']));
       }
       fill(host, flat);
+      updateListCount(tests.length, host.querySelectorAll('.row').length);
       return;
     }
     var groups = [];
@@ -717,15 +730,30 @@
           return;
         }
         rendered += 1;
+        shownIds.add(test.id);
         rows.push(rowButton(test, group.name === 'Problems'));
       });
       if (!rows.length) return null;
       return el('div', { class: 'group' }, [el('p', { class: 'file-name' }, [group.name])].concat(rows));
     }).filter(Boolean);
+    pinSelection(nodes, shownIds, tests);
     if (truncated) {
       nodes.push(el('button', { class: 'more', type: 'button', id: 'show-rest' }, ['Show more tests']));
     }
     fill(host, nodes);
+    updateListCount(tests.length, host.querySelectorAll('.row').length);
+  }
+
+  // Keep deep links visible without rendering thousands of preceding rows.
+  function pinSelection(nodes, shownIds, tests) {
+    if (shownIds.has(state.selectedId)) return;
+    var test = tests.find(function (item) { return item.id === state.selectedId; });
+    if (test) nodes.unshift(el('div', { class: 'group pinned-selection' }, [el('p', { class: 'file-name' }, ['Selected test']), rowButton(test, true)]));
+  }
+
+  function updateListCount(matches, shown) {
+    var status = document.querySelector('#list-summary [role="status"]');
+    if (status && shown < matches) status.textContent += ' · ' + shown + ' shown';
   }
 
   function rowButton(test, showFile) {
@@ -757,6 +785,7 @@
       ['logs', 'Logs'],
       ['shots', 'Screenshots'],
     ];
+    if (data.showFiles !== false && (test.attempts || []).some(function (item) { return (item.attachments || []).some(function (file) { return file.kind !== 'image'; }); })) panes.push(['files', 'Files']);
     var tabs = el('div', { class: 'subtabs', role: 'group', 'aria-label': 'Test details' }, panes.map(function (pane) {
       return el('button', {
         class: 'subtab',
@@ -766,7 +795,10 @@
       }, [pane[1]]);
     }));
     var body = [headerBlock(test), tabs];
-    if (test.attempts.length > 1) body.push(attemptTabs(test));
+    if (test.attempts.length > 1) {
+      body.push(attemptTabs(test));
+      body.push(el('p', { class: 'attempt-note' }, ['Showing attempt ' + (state.attempt + 1) + ' of ' + test.attempts.length + '. ' + (test.status === 'flaky' ? 'The test passed after a retry.' : 'Each attempt has its own evidence.')]));
+    }
     if (attempt) body.push(paneBody(test, attempt));
     else body.push(el('p', { class: 'empty block' }, ['This test did not run.']));
     fill(host, [el('div', { class: 'detail-body' }, body)]);
@@ -776,13 +808,17 @@
     if (state.testPane === 'error') return errorBlock(attempt) || el('p', { class: 'empty' }, ['No error on this attempt.']);
     if (state.testPane === 'logs') return logBlock(attempt) || el('p', { class: 'empty' }, ['No logs for this attempt.']);
     if (state.testPane === 'shots') return shotBlock(attempt) || el('p', { class: 'empty' }, ['No screenshots for this attempt.']);
+    if (state.testPane === 'files') {
+      var rows = fileRows(test, [attempt], state.attempt);
+      return rows.length ? el('div', { class: 'block' }, [el('h3', null, ['Files'])].concat(rows)) : el('p', { class: 'empty' }, ['No files for this attempt.']);
+    }
     return stepsBlock(attempt) || el('p', { class: 'empty' }, ['No steps recorded.']);
   }
 
   function headerBlock(test) {
     var bits = [];
     if (test.group && test.group.length) bits.push(el('p', { class: 'kicker' }, [test.group.join(' / ')]));
-    bits.push(el('h2', null, [test.title]));
+    bits.push(el('h2', { id: 'detail-title', tabindex: '-1' }, [test.title]));
     var where = [el('span', null, [test.file + ':' + test.line])];
     if (data.showProjects === true && test.project) where.push(el('span', null, [test.project]));
     (test.tags || []).forEach(function (tag) { where.push(el('span', null, [tag])); });
@@ -791,7 +827,7 @@
       el('span', { class: 'sw', 'data-status': test.status }, [statusLabel(test)]),
       ' in ' + formatDuration(test.duration),
     ]));
-    if (test.expectedFailure) bits.push(el('p', { class: 'note' }, ['This failure was expected.']));
+    if (test.expectedFailure) bits.push(el('p', { class: 'note' }, ['This test was expected to fail, so it counts as passed.']));
     (test.annotations || []).forEach(function (annotation) {
       if (!annotation.description) return;
       bits.push(el('p', { class: 'note' }, [annotation.type + ': ' + annotation.description]));
@@ -854,8 +890,8 @@
       var title = [step.title || 'Step'];
       if (step.subtitle) title.push(el('span', { class: 'sub' }, [' ' + step.subtitle]));
       var row = el('div', { class: bad ? 'step bad' : 'step' }, [
-        el('span', { class: 'mark' }),
-        el('span', null, title),
+        el('span', { class: 'mark', 'aria-hidden': 'true' }),
+        el('span', { class: 'step-title' }, (bad ? [el('span', { class: 'visually-hidden' }, ['Failed step: '])] : []).concat(title)),
         el('span', { class: 'loc' }, [formatDuration(step.duration || 0)]),
       ]);
       var kids = (step.steps && step.steps.length) ? [row, renderSteps(step.steps, depth + 1, suppressError)] : [row];
@@ -875,12 +911,14 @@
   function shotBlock(attempt) {
     var images = (attempt.attachments || []).filter(function (item) { return item.kind === 'image' && safeSrc(item.path); });
     if (!images.length) return null;
-    return el('div', { class: 'block' }, [el('h3', null, ['Screenshots'])].concat(images.map(shotButton)));
+    return el('div', { class: 'block' }, [el('h3', null, ['Screenshots'])].concat(images.map(function (image) {
+      return el('figure', { class: 'test-shot' }, [shotButton(image), el('figcaption', null, [image.stepTitle || image.name || 'Screenshot'])]);
+    })));
   }
 
   function shotButton(item) {
     var src = safeSrc(item.path);
-    return el('button', { class: 'shot', type: 'button', 'data-src': src, 'data-alt': item.name || 'Screenshot' }, [
+    return el('button', { class: 'shot', type: 'button', 'data-src': src, 'data-alt': item.stepTitle || item.name || 'Screenshot', 'aria-label': 'Enlarge screenshot: ' + (item.stepTitle || item.name || 'Screenshot') }, [
       el('img', { src: src, alt: item.name || 'Screenshot', loading: 'lazy', decoding: 'async' }),
     ]);
   }
@@ -913,13 +951,12 @@
             ]),
             copy,
           ]);
-          tile.style.setProperty('--edge', canvasColor(test.status));
           tiles.push(tile);
         });
       });
     });
     var empty = el('p', { class: 'empty', id: 'shot-empty' }, ['']);
-    fill(host, [el('h2', null, ['Screenshots']), filters, empty, el('div', { class: 'gallery', id: 'gallery' }, tiles)]);
+    fill(host, [pageHeading('Screenshots', 'Select an image to enlarge it, or open its test for context.'), filters, el('p', { class: 'list-summary', id: 'shot-summary', role: 'status', 'aria-live': 'polite' }), empty, el('div', { class: 'gallery', id: 'gallery' }, tiles)]);
     document.querySelectorAll('#gallery img').forEach(function (img) {
       img.src = img.parentElement.dataset.src;
     });
@@ -945,10 +982,11 @@
     if (!empty) return;
     empty.hidden = visible > 0;
     if (!visible) empty.textContent = emptyShotMessage();
+    document.getElementById('shot-summary').textContent = visible + (visible === 1 ? ' screenshot' : ' screenshots');
   }
 
   function emptyShotMessage() {
-    if (state.shotFilter === 'step') return 'No step screenshots. Set screenshots to steps and use step().';
+    if (state.shotFilter === 'step') return 'No screenshots were captured for individual steps.';
     if (state.shotFilter === 'failure') return 'No failing screenshot in this run.';
     if (state.shotFilter === 'last') return 'No final screenshot of a passing attempt.';
     return 'No screenshots in this run.';
@@ -964,7 +1002,7 @@
         if (!attempt.stdout && !attempt.stderr) return;
         var blob = (test.title + ' ' + (attempt.stdout || '') + ' ' + (attempt.stderr || '')).toLowerCase();
         var nodes = [
-          el('h3', null, [test.title]),
+          el('h2', null, [test.title]),
           el('p', { class: 'tile-meta' }, ['Attempt ' + (index + 1) + ' · ' + attemptLabel(attempt.status)]),
         ];
         if (attempt.stdout) nodes.push(el('div', { class: 'well' }, [el('p', null, ['Output']), el('pre', null, [attempt.stdout])]));
@@ -975,7 +1013,7 @@
       });
     });
     fill(host, [
-      el('h2', null, ['Logs']),
+      pageHeading('Logs', 'Output recorded during the run. Open a test to see the matching attempt.'),
       el('input', { id: 'log-find', class: 'find', type: 'search', placeholder: 'Find in logs', 'aria-label': 'Find in logs' }),
       el('p', { class: 'empty', id: 'log-empty', hidden: cards.length > 0 }, ['No logs in this run.']),
       el('div', { id: 'log-list' }, cards),
@@ -1000,31 +1038,43 @@
     var host = document.getElementById('panel-files');
     var groups = [];
     data.tests.forEach(function (test) {
-      var rows = [];
-      (test.attempts || []).forEach(function (attempt, index) {
+      var rows = fileRows(test, test.attempts || [], 0);
+      var fileAttempt = (test.attempts || []).findIndex(function (attempt) { return (attempt.attachments || []).some(function (file) { return file.kind !== 'image'; }); });
+      if (rows.length) groups.push(el('section', { class: 'file-group' }, [el('h2', null, [test.title])].concat(rows).concat([
+        el('button', { class: 'open-test', type: 'button', 'data-id': test.id, 'data-attempt': String(fileAttempt), 'data-open-pane': 'files' }, ['Open test']),
+      ])));
+    });
+    fill(host, [pageHeading('Files', 'Download traces and other attachments, or play recorded videos.')].concat(groups.length ? groups : [el('p', { class: 'empty' }, ['No other files were attached.'])]));
+  }
+
+  function fileRows(test, attempts, offset) {
+    var rows = [];
+    attempts.forEach(function (attempt, index) {
         (attempt.attachments || []).forEach(function (file) {
           if (file.kind === 'image') return;
           var label = file.kind === 'trace' ? 'Trace' : file.kind === 'video' ? 'Video' : 'File';
           var line = [el('span', { class: 'file-kind' }, [label])];
-          if ((test.attempts || []).length > 1) line.push(el('span', { class: 'now-file' }, ['Attempt ' + (index + 1)]));
+          if ((test.attempts || []).length > 1) line.push(el('span', { class: 'now-file' }, ['Attempt ' + (offset + index + 1)]));
           if (file.omitted || !safeSrc(file.path)) {
             line.push(el('span', { class: 'now-file' }, ['Not copied']));
           } else if (file.kind === 'video') {
             line.push(el('video', { class: 'video', controls: 'true', preload: 'metadata', src: safeSrc(file.path) }));
           } else {
             var href = safeSrc(file.path);
-            var linkText = file.kind === 'trace' ? 'Download' : (file.name || 'Download');
+            var linkText = file.kind === 'trace' ? 'Download trace' : (file.name || 'Download');
             line.push(el('a', { class: 'file-link', href: href, download: '' }, [linkText]));
             if (file.kind === 'trace') {
-              line.push(el('span', { class: 'now-file' }, ['npx playwright show-trace ' + href]));
+              line.push(el('details', { class: 'trace-help' }, [el('summary', null, ['How to open a trace']), el('p', { class: 'hint' }, ['After downloading, run ', el('code', null, ['npx playwright show-trace "' + href.split('/').pop() + '"']), ' from the download folder.'])]));
             }
           }
           rows.push(el('div', { class: 'file-row' }, line));
         });
       });
-      if (rows.length) groups.push(el('section', { class: 'file-group' }, [el('h3', null, [test.title])].concat(rows)));
-    });
-    fill(host, [el('h2', null, ['Files'])].concat(groups.length ? groups : [el('p', { class: 'empty' }, ['No other files were attached.'])]));
+    return rows;
+  }
+
+  function pageHeading(title, description) {
+    return el('header', { class: 'page-heading' }, [el('h1', null, [title]), el('p', null, [description])]);
   }
 
   function bind() {
@@ -1059,6 +1109,11 @@
         return;
       }
       if (target.closest('[data-go-tests]')) {
+        resetFilters();
+        keepSelectionInFilter();
+        if (built.tests) { paintTags(); paintOrder(); paintList(); paintDetail(); }
+        syncPressed();
+        paintDuration();
         showTab('tests');
         document.getElementById('find').focus();
         return;
@@ -1088,17 +1143,21 @@
       var band = target.closest('.band') || target.closest('.slice');
       if (band) {
         var bandId = band.dataset.band || band.getAttribute('data-slice');
-        state.band = state.band === bandId ? 'all' : bandId;
+        var previousBand = state.band;
+        resetFilters();
+        state.band = previousBand === bandId ? 'all' : bandId;
         state.order = state.band === 'all' ? state.order : 'slowest';
         state.listLimit = 200;
         keepSelectionInFilter();
         if (built.tests) {
+          paintTags();
           paintOrder();
           paintList();
           paintDetail();
         }
         paintDuration();
         showTab('tests');
+        syncPressed();
         return;
       }
       var clearBand = target.closest('.band-clear');
@@ -1113,12 +1172,15 @@
       }
       var count = target.closest('.count');
       if (count && !count.classList.contains('shot-filter') && !count.classList.contains('count-static')) {
+        if (count.closest('#legend')) resetFilters();
         state.filter = count.dataset.status || 'all';
         state.listLimit = 200;
         syncPressed();
         keepSelectionInFilter();
         if (count.closest('#legend')) showTab('tests');
         if (built.tests) {
+          paintTags();
+          paintOrder();
           paintList();
           paintDetail();
           markStrip();
@@ -1132,7 +1194,7 @@
       }
       var row = target.closest('.row, .bar-row');
       if (row) {
-        choose(row.dataset.id, false);
+        choose(row.dataset.id, false, true);
         return;
       }
       var pane = target.closest('.subtab');
@@ -1157,16 +1219,18 @@
         return;
       }
       if (target.closest('#show-more-timeline')) {
+        var previousTimelineCount = document.querySelectorAll('.run-row').length;
         state.timelineLimit += 200; paintStrip();
-        var moreTimeline = document.getElementById('show-more-timeline');
-        if (moreTimeline) moreTimeline.focus();
+        var timelineRows = document.querySelectorAll('.run-row');
+        if (timelineRows[previousTimelineCount]) timelineRows[previousTimelineCount].focus();
         return;
       }
       if (target.closest('#show-rest')) {
+        var previousCount = document.querySelectorAll('#tests .row:not(.pinned-selection .row)').length;
         state.listLimit += 200;
         paintList();
-        var more = document.getElementById('show-rest');
-        if (more) more.focus();
+        var newRows = document.querySelectorAll('#tests .row:not(.pinned-selection .row)');
+        if (newRows[previousCount]) newRows[previousCount].focus();
         return;
       }
       var shot = target.closest('.shot');
@@ -1230,7 +1294,7 @@
       }
       if (event.key >= '1' && event.key <= '5') {
         var destination = TABS[Number(event.key) - 1];
-        if (destination) showTab(destination);
+        if (destination) { showTab(destination); document.getElementById('tab-' + destination).focus(); }
         return;
       }
       if (event.key === '/') {
@@ -1261,11 +1325,11 @@
       var nextIndex = event.key === 'ArrowDown' ? current + 1 : current - 1;
       if (nextIndex < 0) nextIndex = 0;
       if (nextIndex >= rows.length) nextIndex = rows.length - 1;
-      choose(rows[nextIndex].dataset.id, false);
+      choose(rows[nextIndex].dataset.id, false, false);
     });
   }
 
-  function choose(id, resetFilter) {
+  function choose(id, resetFilter, pointer) {
     if (!id || !testById(id)) return;
     if (resetFilter) resetFilters();
     if (state.selectedId !== id) {
@@ -1273,9 +1337,8 @@
       state.selectedId = id;
       state.attempt = failedAttempt(test);
       state.testPane = defaultPane(test);
+      if (built.tests) document.getElementById('detail').scrollTop = 0;
     }
-    var position = filteredTests().findIndex(function (test) { return test.id === id; });
-    state.listLimit = Math.max(state.listLimit, position + 1);
     showTab('tests');
     if (built.tests) {
       syncPressed();
@@ -1286,6 +1349,10 @@
       markStrip();
     }
     paintDuration();
+    if (resetFilter || (pointer && window.innerWidth <= 1000)) {
+      focusDetail();
+      return;
+    }
     var row = document.querySelector('#tests .row[data-id="' + cssEscape(id) + '"]');
     if (row) row.focus({ preventScroll: true });
     if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
@@ -1324,8 +1391,8 @@
     if (!test) return;
     resetFilters();
     state.selectedId = id;
-    state.attempt = attempt;
-    state.testPane = pane === 'logs' ? 'logs' : 'shots';
+    state.attempt = Math.max(0, Math.min(attempt, test.attempts.length - 1));
+    state.testPane = ['steps', 'error', 'logs', 'shots', 'files'].indexOf(pane) !== -1 ? pane : defaultPane(test);
     showTab('tests');
     if (built.tests) {
       paintTags();
@@ -1336,7 +1403,15 @@
     }
     syncPressed();
     paintDuration();
-    document.getElementById('detail').scrollIntoView({ block: 'nearest' });
+    document.getElementById('detail').scrollTop = 0;
+    focusDetail();
+  }
+
+  function focusDetail() {
+    var title = document.getElementById('detail-title');
+    if (!title) return;
+    title.focus({ preventScroll: true });
+    document.getElementById('detail').scrollIntoView({ block: window.innerWidth <= 1000 ? 'start' : 'nearest' });
   }
 
   function openShot(src, alt) {
@@ -1344,7 +1419,7 @@
     if (!safe) return;
     var close = el('button', { class: 'close-shot', type: 'button' }, ['Close']);
     var returnFocus = document.activeElement;
-    var dialog = el('dialog', { 'aria-label': alt || 'Screenshot' }, [close, el('img', { src: safe, alt: alt })]);
+    var dialog = el('dialog', { 'aria-label': alt || 'Screenshot' }, [el('div', { class: 'dialog-heading' }, [el('strong', null, [alt || 'Screenshot']), close]), el('img', { src: safe, alt: alt })]);
     close.addEventListener('click', function () { dialog.close(); });
     dialog.addEventListener('click', function (event) { if (event.target === dialog) dialog.close(); });
     dialog.addEventListener('close', function () { dialog.remove(); if (returnFocus && returnFocus.isConnected) returnFocus.focus(); });
@@ -1385,7 +1460,8 @@
 
   function defaultPane(test) {
     if (!test) return 'steps';
-    if (isProblem(test)) return 'error';
+    var attempt = (test.attempts || [])[failedAttempt(test)];
+    if (isProblem(test) && attempt && attempt.errors && attempt.errors.length) return 'error';
     return 'steps';
   }
 
@@ -1394,7 +1470,7 @@
   }
 
   function statusLabel(test) {
-    if (test.status === 'passed' && test.expectedFailure) return 'Expected fail';
+    if (test.status === 'passed' && test.expectedFailure) return 'Expected failure';
     if (test.status === 'timedOut') return 'Timed out';
     var status = test.status || 'passed';
     return status.charAt(0).toUpperCase() + status.slice(1);
@@ -1474,22 +1550,6 @@
     return new Intl.DateTimeFormat('en-US', {
       month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
     }).format(date);
-  }
-
-  function countUp(node, target, format) {
-    if (!node) return;
-    if (reduce || target <= 0) {
-      node.textContent = format(target);
-      return;
-    }
-    var start = performance.now();
-    function frame(now) {
-      var t = Math.min(1, (now - start) / 800);
-      var eased = 1 - Math.pow(1 - t, 3);
-      node.textContent = format(target * eased);
-      if (t < 1) requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
   }
 
   function cssEscape(value) {

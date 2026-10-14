@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.5
+
+- Put tests needing attention first and simplify the overview, typography, status explanations, and duration charts; use bars by default while preserving pie and combined options.
+- Exclude skipped tests from the pass percentage and explain retries, skipped-only runs, and runner errors.
+- Open attention links on the error, clear stale filters when following overview links, and keep selected tests visible in large reports.
+- Bring selected test details into view on mobile, retain keyboard focus during pagination, and include a test's files with its other evidence.
+- Consolidate the stylesheet, honor all accent colors in both themes, and support printing without clipped scroll panels.
+
 ## 0.2.4
 
 - Refresh the report UI with a persistent sidebar, dashboard overview, and clearer test exploration.

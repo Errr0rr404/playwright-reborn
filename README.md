@@ -23,8 +23,8 @@ That is the whole install. Overview, Tests, and Screenshots are always in the re
 
 ## Pages
 
-- **Overview** shows the company name, how long the run took, the counts, and a duration chart. The chart counts tests under 1 minute, from 1 to 3 minutes, from 3 to 5 minutes, and over 5 minutes. **Chart** and **Timeline** switch that section. Timeline lists every test by name.
-- **Tests** is the list and one test. A test has Steps, Error, Logs, and Screenshots. **Order** can group the list by file, or sort it slowest, fastest, or by the time it started.
+- **Overview** shows the outcome, counts, tests that need attention, and a duration chart. The pass percentage excludes skipped tests and counts flaky tests separately. Flaky means a test passed after a retry. The chart counts tests under 1 minute, from 1 to 3 minutes, from 3 to 5 minutes, and over 5 minutes. **Chart** and **Timeline** switch that section. Timeline lists every test by name.
+- **Tests** is the list and one test. A test has Steps, Error, Logs, Screenshots, and Files when attachments are available. **Sort** can group the list by file, or sort it slowest, fastest, or by the time it started. On small screens, selecting a test brings its details into view. A selected test outside the first 200 results is pinned above the list.
 - **Screenshots** is the gallery. Filter it to every step, the last failing step, or the last step of a passing attempt.
 - **Logs** is output from the whole run. It is on by default.
 - **Files** is traces, video, and other files that are not pictures. It is on by default.
@@ -54,21 +54,21 @@ Pass any of these next to the reporter. Omitted settings use the default.
   state: 'CA',
   defects: ['PAY-14'],
   productSubtitle: 'Test Automation',
-  chartStyle: 'both',
+  chartStyle: 'bar',
 }]
 ```
 
 | Setting | Default | Allowed |
 |---|---|---|
-| `company` | Project folder name | Any name. This is the large title. It does not change when a run fails. |
-| `accent` | `green` | `green`, `red`, `blue`, `amber`, `violet`. Colors the light field, selection, charts, and links. Failures stay coral and flaky results stay amber for consistent recognition. |
+| `company` | Project folder name | Any name. Shown in the workspace and header. It does not change when a run fails. |
+| `accent` | `green` | `green`, `red`, `blue`, `amber`, `violet`. Colors selection and links in both themes. Failure and flaky colors stay consistent. |
 | `open` | `on-failure`, or `never` in CI | `always`, `never`, `on-failure`. When to open the HTML file after the run. Use `never` when `CI` is set. |
 | `outputFolder` | `reborn-report` | A dedicated folder path. Each run replaces its previous report. Existing empty folders are accepted; unrelated non-empty folders and symbolic links are refused. If you leave this unset, a sharded run writes `reborn-report-shard-1` and so on. |
 | `reportFileName` | `index.html` | One `.html` file name, with no folders. Jenkins HTML Publisher can point at this file. |
 | `inline` | `true` | `true` or `false`. `true` writes one HTML file with the CSS, script, and fonts inside it, and embeds screenshots. Traces and other files stay as relative links in the report folder. |
 | `overview` | `chart` | `chart` or `timeline`. Which view the overview opens on. The buttons on the page can still switch it. |
-| `chartStyle` | `both` | `pie`, `bar`, or `both`. The duration chart. `chart` opens on these charts. |
-| `productSubtitle` | `Test Automation` | The line under the company name. An empty string hides it. |
+| `chartStyle` | `bar` | `pie`, `bar`, or `both`. Bars are the default to keep the overview compact. |
+| `productSubtitle` | `Test Automation` | The line under the overview title. An empty string hides it. |
 | `showCredit` | `false` | `true` shows “Open source by World of Z” in the footer. It is not on the overview. |
 | `showPlaywrightVersion` | `false` | `true` shows the Playwright version in the header and the info grid. |
 | `showProjects` | `false` | `true` shows project names in the header and the info grid. |

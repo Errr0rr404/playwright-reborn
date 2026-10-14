@@ -29,7 +29,7 @@ export async function runUiChecks(reportHtml) {
     if (frame) frame.remove();
     frame = document.createElement('iframe');
     frame.title = 'Report under test';
-    frame.style.cssText = `width:${width}px;height:860px;border:1px solid #333;max-width:100%;display:block;margin-top:24px`;
+    frame.style.cssText = `width:${width}px;height:860px;border:0;outline:1px solid #333;display:block;margin-top:24px`;
     document.body.append(frame);
     const json = JSON.stringify(data).replace(/</g, '\\u003c');
     const prelude = `<script>window.__errors=[];window.addEventListener('error',function(e){window.__errors.push(e.message)});window.matchMedia=function(){return {matches:true}};history.replaceState(null,'',location.href.split('#')[0]+${JSON.stringify('#' + hash)});<\/script>`;
@@ -55,16 +55,20 @@ export async function runUiChecks(reportHtml) {
 
   await load();
   await check('Dashboard metrics and attention links reflect the run', async () => {
-    assert(query('.word').textContent === 'Dashboard', 'Dashboard heading is missing');
+    assert(query('.word').textContent === 'Run overview', 'Overview heading is missing');
     const metrics = [...doc.querySelectorAll('.metric-value')].map(node => node.textContent);
     const problems = base.tests.filter(test => ['failed', 'timedOut', 'interrupted', 'flaky'].includes(test.status));
     assert(metrics[0] === String(base.tests.length), 'Total tests is incorrect');
-    assert(metrics[1] === Math.round(base.counts.passed / base.tests.length * 100) + '%', 'Pass rate is incorrect');
+    assert(metrics[1] === String(base.counts.passed), 'Passed count is incorrect');
+    const executed = base.tests.filter(test => test.status !== 'skipped').length;
+    assert(query('#pass-percent').textContent === Math.round(base.counts.passed / executed * 100) + '%', 'Skipped tests lowered the pass rate');
     assert(metrics[3] === String(problems.length), 'Attention count is incorrect');
     const opener = query('.attention-row'); assert(opener, 'Attention links are missing');
     const selected = base.tests.find(test => test.id === opener.dataset.id);
     opener.click();
     assert(query('#detail h2').textContent === selected.title, 'Attention link opened the wrong test');
+    assert(query('.subtab[aria-pressed="true"]').dataset.pane === 'error', 'Attention link did not open the error');
+    assert(doc.activeElement.id === 'detail-title', 'Attention link did not focus the selected test');
     click('[data-tab="overview"]');
   });
   await check('Sidebar stays visible and vertical navigation works', async () => {
@@ -93,7 +97,7 @@ export async function runUiChecks(reportHtml) {
   await check('Log links open the correct test attempt and Logs pane', async () => {
     click('[data-tab="logs"]');
     const opener = query('.log-card .open-test'); assert(opener, 'Missing log link');
-    const title = opener.closest('.log-card').querySelector('h3').textContent;
+    const title = opener.closest('.log-card').querySelector('h2').textContent;
     opener.click();
     assert(query('#detail h2').textContent === title, 'Wrong test opened');
     assert(query('.subtab[aria-pressed="true"]').dataset.pane === 'logs', 'Wrong detail pane');
@@ -123,6 +127,21 @@ export async function runUiChecks(reportHtml) {
     click('[data-tab="overview"]'); click('[data-band="under1"]');
     assert(query('#sort-select').value === 'slowest', 'Wrong order');
     assert(!query('#tests .row[data-status="skipped"]'), 'Skipped test entered duration filter');
+    click('.reset-filters');
+  });
+  await check('Overview result links clear filters from previous searches', async () => {
+    click('[data-tab="tests"]'); input('#find', 'no-such-test-92871');
+    await waitFor(() => doc.querySelectorAll('#tests .row').length === 0);
+    click('[data-tab="overview"]'); click('#legend [data-status="passed"]');
+    assert(query('#find').value === '', 'Result link kept a stale search');
+    assert(doc.querySelectorAll('#tests .row').length === base.counts.passed, 'Result link did not show the advertised tests');
+    click('[data-tab="overview"]'); click('[data-go-tests]');
+    assert(doc.querySelectorAll('#tests .row').length === base.tests.length, 'View all tests kept a stale status filter');
+    input('#find', 'no-such-test-92871');
+    await waitFor(() => doc.querySelectorAll('#tests .row').length === 0);
+    click('[data-tab="overview"]'); click('[data-band="under1"]');
+    assert(query('#find').value === '', 'Duration link kept a stale search');
+    assert(doc.querySelectorAll('#tests .row').length > 0, 'Duration link hid its tests');
     click('.reset-filters');
   });
   await check('Detail controls preserve keyboard focus after rendering', async () => {
@@ -214,6 +233,66 @@ export async function runUiChecks(reportHtml) {
     assert(doc.querySelectorAll('#tests .row').length === 200, 'Initial list is unbounded');
     click('#show-rest'); assert(doc.querySelectorAll('#tests .row').length === 400, 'More button did not paginate');
     click('#show-rest'); assert(doc.querySelectorAll('#tests .row').length === 450, 'Final batch failed');
+    assert(doc.activeElement.classList.contains('row'), 'Final pagination lost keyboard focus');
+  });
+  await check('Late deep links and sorted selections stay visible in large reports', async () => {
+    const data = clone();
+    const source = data.tests.find(test => test.status === 'passed');
+    data.tests = Array.from({ length: 450 }, (_, i) => ({ ...source, id: 'late-' + i, title: 'Test ' + i, duration: i, attempts: [] }));
+    data.counts = { total: 450, passed: 450, failed: 0, flaky: 0, skipped: 0, timedOut: 0, interrupted: 0 };
+    await load(data, 1280, 'tests/late-449');
+    assert(query('#tests .row[aria-current="true"]')?.dataset.id === 'late-449', 'Deep-linked test is absent from the list');
+    assert(doc.querySelectorAll('#tests .row').length === 201, 'Deep link rendered an unbounded list');
+    select('#sort-select', 'fastest');
+    assert(query('.pinned-selection .row')?.dataset.id === 'late-449', 'Sorting hid the selected test');
+    click('#show-rest'); click('#show-rest');
+    assert(!query('.pinned-selection'), 'Selected test was not restored to its regular position');
+    assert(doc.querySelectorAll('#tests .row').length === 450, 'Pinned test was duplicated');
+    assert(doc.activeElement.dataset.id === 'late-400', 'Pagination did not focus the first new result');
+  });
+  await check('Skipped-only and runner-error reports explain their outcomes', async () => {
+    const data = clone(); data.status = 'passed';
+    data.tests = data.tests.filter(test => test.status === 'skipped');
+    data.counts = { total: data.tests.length, passed: 0, failed: 0, flaky: 0, skipped: data.tests.length, timedOut: 0, interrupted: 0 };
+    await load(data);
+    assert(query('#run-state').textContent === 'No tests ran', 'Skipped-only run was presented as a pass');
+    assert(query('#pass-percent').textContent === '—', 'Skipped-only run has a pass percentage');
+    assert(query('#attention-list').textContent.includes('No tests ran'), 'Skipped-only run is misleading');
+    data.status = 'failed'; data.errors = [{ message: 'Configuration could not be loaded.' }];
+    await load(data);
+    assert(query('#run-state').textContent === 'Run failed', 'Runner failure was hidden');
+    assert(query('.banner').textContent.includes('Configuration could not be loaded.'), 'Run error was omitted');
+  });
+  await check('Files can be opened in the matching test attempt', async () => {
+    await load(); click('[data-tab="files"]');
+    const group = query('.file-group'); assert(group, 'Demo contains no files');
+    const title = group.querySelector('h2').textContent;
+    group.querySelector('.open-test').click();
+    assert(query('#detail h2').textContent === title, 'File link opened the wrong test');
+    assert(query('.subtab[aria-pressed="true"]').dataset.pane === 'files', 'File link did not open Files');
+    assert(query('#detail .file-row'), 'Test files are missing');
+    assert(doc.activeElement.id === 'detail-title', 'File link lost focus');
+    const data = clone();
+    const retry = data.tests.find(test => test.attempts.length > 1);
+    const attached = data.tests.flatMap(test => test.attempts.flatMap(attempt => attempt.attachments)).find(file => file.kind !== 'image');
+    retry.attempts.forEach(attempt => attempt.attachments = []);
+    retry.attempts[1].attachments = [attached];
+    data.tests = [retry];
+    await load(data); click('[data-tab="files"]'); click('.file-group .open-test');
+    assert(query('.attempt[aria-pressed="true"]').dataset.index === '1', 'File link selected an attempt without files');
+    assert(query('#detail .file-row'), 'Retry attachment is missing');
+  });
+  await check('Selecting a mobile test brings its details into view', async () => {
+    await load(base, 390); click('[data-tab="tests"]');
+    const row = query('#tests .row[data-status="passed"]'); assert(row, 'No passed test');
+    const title = row.querySelector('.row-title').textContent;
+    row.click();
+    assert(query('#detail h2').textContent === title, 'Mobile selection opened the wrong test');
+    assert(doc.activeElement.id === 'detail-title', 'Mobile selection did not focus the details');
+    const heading = query('#detail h2').getBoundingClientRect();
+    assert(heading.top >= -1 && heading.bottom <= win.innerHeight, 'Selected details are out of view');
+    const selected = query('#tests .row[aria-current="true"]'); selected.focus(); key(selected, 'ArrowDown');
+    assert(doc.activeElement.classList.contains('row'), 'Mobile keyboard navigation jumped out of the list');
   });
   await check('Tag and sort dropdowns share a row, preserve focus and combine filters', async () => {
     await load(); click('[data-tab="tests"]');

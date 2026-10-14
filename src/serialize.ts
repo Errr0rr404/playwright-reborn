@@ -320,7 +320,7 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
     showLogs: input.showLogs !== false,
     showFiles: input.showFiles !== false,
     overview: input.overview === 'timeline' ? 'timeline' : 'chart',
-    chartStyle: input.chartStyle === 'pie' || input.chartStyle === 'bar' ? input.chartStyle : 'both',
+    chartStyle: input.chartStyle === 'pie' || input.chartStyle === 'both' ? input.chartStyle : 'bar',
     productSubtitle: input.productSubtitle === undefined ? 'Test Automation' : input.productSubtitle,
     showCredit: input.showCredit === true,
     showPlaywrightVersion: input.showPlaywrightVersion === true,

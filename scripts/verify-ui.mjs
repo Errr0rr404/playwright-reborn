@@ -40,11 +40,11 @@ const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 await page.goto(pathToFileURL(htmlPath).href);
 await page.evaluate(() => document.fonts.ready);
-await page.getByRole('heading', { level: 1, name: 'Dashboard' }).waitFor();
+await page.getByRole('heading', { level: 1, name: 'Run overview' }).waitFor();
 await page.getByText('Test Automation', { exact: true }).waitFor();
 assert.equal(await page.getByText('Open source by World of Z').count(), 0);
 assert.equal((await page.locator('#meta').innerText()).includes('Playwright'), false);
-assert.equal(await page.locator('.pie').count(), 1);
+assert.equal(await page.locator('.pie').count(), data.chartStyle === 'bar' ? 0 : 1);
 assert.equal(await page.locator('#project-select').count(), 0);
 await page.waitForFunction(() => document.querySelector('#legend .count[data-status="failed"] .n')?.textContent === '1');
 const ran = data.tests.filter((test) => test.status !== 'skipped');
@@ -108,7 +108,7 @@ await page.getByText('order text', { exact: false }).first().waitFor();
 await page.getByText('stock service slow', { exact: false }).first().waitFor();
 
 await page.getByRole('tab', { name: 'Files' }).click();
-await page.getByText('show-trace', { exact: false }).first().waitFor();
+await page.getByRole('link', { name: 'Download trace', exact: true }).first().waitFor();
 assert.equal(await page.locator('#panel-files img').count(), 0);
 
 await page.getByRole('tab', { name: 'Tests' }).click();
