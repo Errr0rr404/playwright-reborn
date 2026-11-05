@@ -27,7 +27,7 @@ That is the whole install. Overview, Tests, and Screenshots are always in the re
 - **Tests** is the list and one test. A test has Steps, Error, Logs, Screenshots, and Files when attachments are available. **Sort** can group the list by file, or sort it slowest, fastest, or by the time it started. On small screens, selecting a test brings its details into view. A selected test outside the first 200 results is pinned above the list.
 - **Screenshots** is the gallery. Filter it to every step, the last failing step, or the last step of a passing attempt.
 - **Logs** is output from the whole run. It is on by default.
-- **Files** is traces, video, and other files that are not pictures. Videos play in the page. Failing tests come first, then flaky ones, and a test's videos come before its other files. Each row names the file type, such as Trace, Video, JSON, or Text. It is on by default.
+- **Files** is traces, video, and other files that are not pictures. Videos play in the page. Failing tests come first, then flaky ones, and a test's videos come before its other files. Each row names the file type, such as Trace, Video, JSON, or Text. It is on by default. A video is the file Playwright recorded, copied as is. Playwright adds a frame only when the page draws, so a test that ends on a still page within a second can leave a blank one-second clip.
 
 `#overview`, `#tests`, `#screenshots`, `#logs`, and `#files` open those pages. `#tests/<id>` opens one test. Keys `1` onward switch the pages that are present. `/` jumps to the find field.
 
@@ -73,7 +73,7 @@ Pass any of these next to the reporter. Omitted settings use the default.
 | `overview` | `chart` | `chart` or `timeline`. Which view the overview opens on. The buttons on the page can still switch it. |
 | `chartStyle` | `bar` | `pie`, `bar`, or `both`. Bars are the default to keep the overview compact. |
 | `productSubtitle` | `Test Automation` | The line under the overview title. An empty string hides it. |
-| `brandName` | `Reborn` | Any name. The large label at the top of the sidebar, and the start of the browser tab title. |
+| `brandName` | `Reborn` | Any name. The large label at the top of the sidebar, and the start of the browser tab title. It stays on one line: a long name gets a smaller font, then an ellipsis, and hovering shows it in full. |
 | `brandCaption` | `Test reports` | The small line under `brandName`. An empty string hides it. |
 | `dashboardTitle` | `Run overview` | Any name. The heading of the Overview page. |
 | `history` | `0` | A whole number from 0 to 100. How many earlier runs to keep inside the report folder, under `history/`. The Overview lists them under Earlier runs, and an earlier run links back to the latest one. `0` keeps none, and clears `history/` on the next run. |
@@ -111,7 +111,15 @@ The browser tab reads `Acme · Checkout team · 1 failed. 10 tests.` The text is
 
 ## Run history
 
-Set `history` and keep `outputFolder` the same for every run. Each run moves the report it replaces into `history/<time>/`, with its traces and videos, and keeps the newest `history` runs. Open them from Earlier runs on the Overview. If each run writes to a new folder instead, there is no history to show. Archive the whole report folder to keep the links working.
+Set `history` and keep `outputFolder` the same for every run. Each run moves the report it replaces into `history/<time>/`, with its traces and videos, and keeps the newest `history` runs. Open them from Earlier runs on the Overview. Archive the whole report folder to keep the links working.
+
+```ts
+['playwright-reborn', { outputFolder: 'reborn-report/qa', history: 10 }]
+```
+
+Do not put a run id in `outputFolder`, such as `reborn-report/qa/${process.env.REPORT_RUN}`. Each run then writes a new folder, the folders pile up, and there is no history to show.
+
+The report shows the tests of the run that wrote it. Running one spec file replaces the full-suite report with that one file's tests; with `history` set, the full run stays under Earlier runs.
 
 ## Screenshots
 

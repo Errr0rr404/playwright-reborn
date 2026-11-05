@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- The sidebar brand stays on one line. A name such as `Monarch EVV` used to wrap at 1440px. A long name now gets a smaller font, then an ellipsis, and hovering shows the full name and caption.
+- The README shows a fixed `outputFolder` with `history`, says why a run id in the folder name leaves no history, and explains blank one-second videos.
+
 ## 0.3.1
 
 - `brandName` and `brandCaption` replace the fixed `Reborn` / `Test reports` sidebar label. The browser tab title starts with `brandName`, also before the page script runs. `dashboardTitle` sets the Overview heading.

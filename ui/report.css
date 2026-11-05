@@ -105,8 +105,12 @@ h1, h2, h3, p, figure { margin-top: 0; }
 .rail { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; overflow-y: auto; padding: 24px 16px; background: var(--surface); border-right: 1px solid var(--border); }
 .sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; color: var(--heading); font-size: 23px; font-weight: 600; letter-spacing: -.035em; }
 .sidebar-brand > .icon { width: 36px; height: 36px; padding: 8px; color: var(--accent); background: var(--wash); border-radius: 9px; }
-.brand-text { min-width: 0; overflow-wrap: anywhere; }
-.brand-caption { display: block; margin-top: -2px; color: var(--subtle); font-size: 12px; font-weight: 400; letter-spacing: 0; }
+/* The brand stays on one line. The page script shrinks a long name to fit,
+   and an ellipsis catches what still does not; the full text is the title. */
+.brand-text { flex: 1; min-width: 0; }
+.brand-name, .brand-caption { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.brand-name { line-height: 1.3; }
+.brand-caption { margin-top: -2px; color: var(--subtle); font-size: 12px; font-weight: 400; letter-spacing: 0; }
 .project-card { display: flex; align-items: center; gap: 10px; margin: 26px 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 .project-card > .icon { color: var(--subtle); }
 .project-card > div { min-width: 0; }

@@ -49,7 +49,7 @@
   app.innerHTML = [
     '<div class="shell">',
     '<aside class="rail">',
-    '<div class="sidebar-brand">' + icon('brand') + '<span class="brand-text"><span id="brand-name"></span><span class="brand-caption" id="brand-caption"></span></span></div>',
+    '<div class="sidebar-brand">' + icon('brand') + '<span class="brand-text"><span class="brand-name" id="brand-name"></span><span class="brand-caption" id="brand-caption"></span></span></div>',
     '<div class="project-card">' + icon('folder') + '<div><span class="project-caption">Workspace</span><strong id="workspace-name"></strong></div></div>',
     '<p class="nav-caption">Report pages</p>',
     '<div class="tabbar" role="tablist" aria-label="Report" aria-orientation="vertical">',
@@ -80,6 +80,7 @@
   document.getElementById('brand-name').textContent = brandName();
   document.getElementById('brand-caption').textContent = brandCaption();
   document.getElementById('brand-caption').hidden = !brandCaption();
+  document.querySelector('.sidebar-brand').title = [brandName(), brandCaption()].filter(Boolean).join(' · ');
   document.getElementById('workspace-name').textContent = companyName();
   document.getElementById('breadcrumb-company').textContent = companyName();
   document.getElementById('sidebar-time').textContent = formatWhen(data.generatedAt);
@@ -98,7 +99,12 @@
   var CHART_COLORS = ['var(--heading)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)'];
 
   syncTabOrientation();
-  window.addEventListener('resize', syncTabOrientation);
+  fitBrand();
+  window.addEventListener('resize', function () {
+    syncTabOrientation();
+    fitBrand();
+  });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitBrand);
   paintOverview();
   showTab(state.tab, true);
   bind();
@@ -121,6 +127,18 @@
       arrow: '<path d="M5 12h14m-5-5 5 5-5 5"/>',
     };
     return '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (paths[name] || paths.tests) + '</svg>';
+  }
+
+  // Steps the brand name down from its CSS size until it fits on one line,
+  // stopping at 15px; the ellipsis covers anything longer.
+  function fitBrand() {
+    var name = document.getElementById('brand-name');
+    name.style.fontSize = '';
+    var size = parseFloat(getComputedStyle(name).fontSize);
+    while (name.scrollWidth > name.clientWidth && size > 15) {
+      size -= 1;
+      name.style.fontSize = size + 'px';
+    }
   }
 
   function syncTabOrientation() {

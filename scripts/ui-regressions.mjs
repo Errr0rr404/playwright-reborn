@@ -348,6 +348,24 @@ export async function runUiChecks(reportHtml) {
     }
     }
   });
+  await check('Brand name and caption stay on one line in the sidebar', async () => {
+    for (const [name, caption] of [['Monarch EVV', 'Test reports'], ['Monarch Electronic Visit Verification', 'Nightly regression for every state']]) {
+      const data = clone(); data.brandName = name; data.brandCaption = caption; data.dashboardTitle = 'EVV regression';
+      for (const width of [1440, 390]) {
+        await load(data, width);
+        await new Promise(resolve => win.requestAnimationFrame(resolve));
+        const brand = query('#brand-name');
+        assert(brand.textContent === name, 'Sidebar brand name is missing');
+        assert(query('#brand-caption').textContent === caption, 'Sidebar brand caption is missing');
+        assert(query('.word').textContent === 'EVV regression', 'Dashboard title is missing');
+        assert(query('.sidebar-brand').title.startsWith(name), 'Sidebar brand has no full-text title');
+        const lineHeight = parseFloat(win.getComputedStyle(brand).lineHeight);
+        assert(brand.getBoundingClientRect().height < lineHeight * 1.5, `${name} wraps at ${width}px`);
+        if (name.length < 20) assert(brand.scrollWidth <= brand.clientWidth, `${name} is cut off at ${width}px`);
+        assert(doc.documentElement.scrollWidth <= doc.documentElement.clientWidth + 1, `Brand overflows the page at ${width}px`);
+      }
+    }
+  });
   if (frame) frame.remove();
   return results;
 }
