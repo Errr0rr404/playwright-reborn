@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0
+## 0.3.1
 
 - `brandName` and `brandCaption` replace the fixed `Reborn` / `Test reports` sidebar label. The browser tab title starts with `brandName`, also before the page script runs. `dashboardTitle` sets the Overview heading.
 - `history` keeps earlier runs in `history/` inside the report folder. The Overview lists them under Earlier runs, and an earlier run links back to the latest report.
