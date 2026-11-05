@@ -114,6 +114,9 @@ class RebornReporter implements Reporter {
       overview: this.parsed.overview,
       chartStyle: this.parsed.chartStyle,
       productSubtitle: this.parsed.productSubtitle,
+      brandName: this.parsed.brandName,
+      brandCaption: this.parsed.brandCaption,
+      dashboardTitle: this.parsed.dashboardTitle,
       showCredit: this.parsed.showCredit,
       showPlaywrightVersion: this.parsed.showPlaywrightVersion,
       showProjects: this.parsed.showProjects,
@@ -124,6 +127,7 @@ class RebornReporter implements Reporter {
     const indexPath = await writeReport(outputDir, report, files, path.join(__dirname, 'ui'), {
       inline: this.parsed.inline,
       reportFileName: this.parsed.reportFileName,
+      history: this.parsed.history,
     });
     process.stdout.write(`\nReborn report: ${indexPath}\n`);
     const failed = status !== 'passed';

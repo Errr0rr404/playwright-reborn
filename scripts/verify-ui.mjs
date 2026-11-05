@@ -14,7 +14,7 @@ const match = html.match(/<script id="reborn-data" type="application\/json">([\s
 assert.ok(match, 'report data was not embedded');
 const data = JSON.parse(match[1]);
 assert.equal(data.status, 'failed');
-assert.equal(data.company, 'playwrightReport');
+assert.equal(data.company, path.basename(root));
 assert.equal(html.includes('assets/report.css'), false);
 assert.equal(html.includes('<style>'), true);
 assert.equal(data.accent, 'green');
@@ -33,7 +33,12 @@ assert.equal(data.steps, 'user');
 
 const browser = process.env.REBORN_BROWSER_CDP_URL
   ? await chromium.connectOverCDP(process.env.REBORN_BROWSER_CDP_URL)
-  : await chromium.launch({ headless: true, executablePath: process.env.REBORN_BROWSER_EXECUTABLE || undefined });
+  : await chromium.launch({
+    headless: true,
+    executablePath: process.env.REBORN_BROWSER_EXECUTABLE || undefined,
+    // Draw with the Mac GPU instead of Playwright's software fallback.
+    ...(process.platform === 'darwin' ? { args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'], ignoreDefaultArgs: ['--enable-unsafe-swiftshader'] } : {}),
+  });
 try {
 const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
 const errors = [];

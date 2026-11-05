@@ -49,7 +49,7 @@
   app.innerHTML = [
     '<div class="shell">',
     '<aside class="rail">',
-    '<div class="sidebar-brand">' + icon('brand') + '<span>Reborn<span class="brand-caption">Test reports</span></span></div>',
+    '<div class="sidebar-brand">' + icon('brand') + '<span class="brand-text"><span id="brand-name"></span><span class="brand-caption" id="brand-caption"></span></span></div>',
     '<div class="project-card">' + icon('folder') + '<div><span class="project-caption">Workspace</span><strong id="workspace-name"></strong></div></div>',
     '<p class="nav-caption">Report pages</p>',
     '<div class="tabbar" role="tablist" aria-label="Report" aria-orientation="vertical">',
@@ -76,7 +76,10 @@
 
   document.body.dataset.accent = accentName();
   applyTheme(readTheme());
-  document.title = companyName() + (data.summary ? ' · ' + data.summary : '');
+  document.title = pageTitle();
+  document.getElementById('brand-name').textContent = brandName();
+  document.getElementById('brand-caption').textContent = brandCaption();
+  document.getElementById('brand-caption').hidden = !brandCaption();
   document.getElementById('workspace-name').textContent = companyName();
   document.getElementById('breadcrumb-company').textContent = companyName();
   document.getElementById('sidebar-time').textContent = formatWhen(data.generatedAt);
@@ -136,6 +139,25 @@
   function companyName() {
     var name = typeof data.company === 'string' ? data.company.trim() : '';
     return name || 'Report';
+  }
+
+  function textOption(value, fallback) {
+    return typeof value === 'string' ? value.trim() : fallback;
+  }
+
+  function brandName() {
+    return textOption(data.brandName, '') || 'Reborn';
+  }
+
+  function brandCaption() {
+    return textOption(data.brandCaption, 'Test reports');
+  }
+
+  function pageTitle() {
+    var names = [brandName()];
+    if (companyName() !== brandName()) names.push(companyName());
+    if (data.summary) names.push(data.summary);
+    return names.join(' · ');
   }
 
   function accentName() {
@@ -215,7 +237,7 @@
     var host = document.getElementById('panel-overview');
     host.innerHTML = [
       '<header class="hero">',
-      '<div><h1 class="word">Run overview</h1><p class="product" id="product"></p><p class="summary" id="summary"></p></div>',
+      '<div><h1 class="word" id="dashboard-title"></h1><p class="product" id="product"></p><p class="summary" id="summary"></p></div>',
       '<p class="run-state" id="run-state"></p>',
       '</header>',
       '<p class="meta" id="meta"></p>',
@@ -233,9 +255,11 @@
       '<div class="strip-window" id="strip-window"><div class="strip-scroll"><div class="strip" id="strip" role="group" aria-label="Tests by time"></div></div></div>',
       '</div></section>',
       '<section class="dashboard-card environment-card"><div class="card-heading"><h2>Run details</h2>' + icon('folder') + '</div><dl class="run-details" id="run-details"></dl><dl class="info" id="info"></dl></section>',
+      '<section class="dashboard-card history-card" id="history-card" hidden><div class="card-heading"><h2>Earlier runs</h2>' + icon('clock') + '</div><div id="history-list"></div></section>',
       '</div>',
     ].join('');
-    var subtitle = typeof data.productSubtitle === 'string' ? data.productSubtitle.trim() : 'Test Automation';
+    document.getElementById('dashboard-title').textContent = textOption(data.dashboardTitle, '') || 'Run overview';
+    var subtitle = textOption(data.productSubtitle, 'Test Automation');
     document.getElementById('product').textContent = subtitle;
     document.getElementById('product').hidden = !subtitle;
     document.getElementById('summary').textContent = overviewSummary();
@@ -244,6 +268,7 @@
     paintDashboard();
     paintErrors();
     paintInfo();
+    paintHistory();
     paintCounts(document.getElementById('legend'), false);
     paintDuration();
     paintStrip();
@@ -336,6 +361,34 @@
     }));
   }
 
+  // Earlier runs written by the `history` option. Links stay inside the report folder.
+  function historyData() {
+    var history = data.history;
+    if (!history || typeof history !== 'object') return null;
+    var base = history.base === '../../' ? '../../' : '';
+    var latest = /^[A-Za-z0-9._-]+\.html$/.test(history.latest || '') ? history.latest : 'index.html';
+    var runs = (Array.isArray(history.runs) ? history.runs : []).filter(function (run) {
+      return run && /^history\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\.html$/.test(run.href || '');
+    });
+    return { base: base, latest: latest, archived: history.archived === true, runs: runs };
+  }
+
+  function paintHistory() {
+    var history = historyData();
+    var card = document.getElementById('history-card');
+    if (!card || !history || history.archived || !history.runs.length) return;
+    card.hidden = false;
+    var words = { passed: 'Passed', failed: 'Failed', timedout: 'Timed out', interrupted: 'Interrupted' };
+    fill(document.getElementById('history-list'), history.runs.map(function (run) {
+      var status = run.status === 'timedout' ? 'timedOut' : run.status;
+      return el('a', { class: 'attention-row history-row', href: history.base + run.href }, [
+        el('span', { class: 'attention-status sw', 'data-status': status }, [words[run.status] || 'Finished']),
+        el('span', { class: 'attention-test' }, [el('strong', null, [formatWhen(run.generatedAt) || 'Earlier run']), el('span', null, [run.summary || ''])]),
+        el('span', { class: 'attention-time' }, ['Open']),
+      ]);
+    }));
+  }
+
   function bandLabel(id) {
     var found = BANDS.find(function (band) { return band[0] === id; });
     return found ? found[1] : '';
@@ -363,7 +416,7 @@
   }
 
   function chartStyle() {
-    return data.chartStyle === 'pie' || data.chartStyle === 'bar' ? data.chartStyle : 'both';
+    return data.chartStyle === 'pie' || data.chartStyle === 'both' ? data.chartStyle : 'bar';
   }
 
   function polar(cx, cy, radius, degrees) {
@@ -500,6 +553,13 @@
   function paintErrors() {
     var host = document.getElementById('errors');
     var items = [];
+    var history = historyData();
+    if (history && history.archived) {
+      items.push(el('div', { class: 'banner history-banner' }, [
+        el('strong', null, ['Earlier run']),
+        el('p', null, ['This report is from ' + formatWhen(data.generatedAt) + '. ', el('a', { href: history.base + history.latest }, ['Open the latest report'])]),
+      ]));
+    }
     (data.errors || []).forEach(function (error) {
       items.push(el('div', { class: 'banner' }, [el('strong', null, ['Run error']), el('pre', null, [error.message || 'The test runner could not complete the run.'])]));
     });
@@ -1037,34 +1097,67 @@
     built.files = true;
     var host = document.getElementById('panel-files');
     var groups = [];
-    data.tests.forEach(function (test) {
+    // Failing tests first, then flaky ones, so their videos are at the top.
+    data.tests.map(function (test, index) { return { test: test, index: index }; }).sort(function (a, b) {
+      return fileRank(a.test) - fileRank(b.test) || a.index - b.index;
+    }).forEach(function (item) {
+      var test = item.test;
       var rows = fileRows(test, test.attempts || [], 0);
       var fileAttempt = (test.attempts || []).findIndex(function (attempt) { return (attempt.attachments || []).some(function (file) { return file.kind !== 'image'; }); });
-      if (rows.length) groups.push(el('section', { class: 'file-group' }, [el('h2', null, [test.title])].concat(rows).concat([
+      var heading = [el('h2', null, [test.title])];
+      if (isProblem(test)) heading.unshift(el('p', { class: 'kicker sw', 'data-status': test.status }, [statusLabel(test)]));
+      if (rows.length) groups.push(el('section', { class: 'file-group', 'data-status': test.status }, heading.concat(rows).concat([
         el('button', { class: 'open-test', type: 'button', 'data-id': test.id, 'data-attempt': String(fileAttempt), 'data-open-pane': 'files' }, ['Open test']),
       ])));
     });
-    fill(host, [pageHeading('Files', 'Download traces and other attachments, or play recorded videos.')].concat(groups.length ? groups : [el('p', { class: 'empty' }, ['No other files were attached.'])]));
+    fill(host, [pageHeading('Files', 'Play recorded videos here. Download traces and other attachments. Failing tests come first.')].concat(groups.length ? groups : [el('p', { class: 'empty' }, ['No videos, traces, or other files were attached.'])]));
+  }
+
+  function fileRank(test) {
+    if (test.status === 'failed' || test.status === 'timedOut' || test.status === 'interrupted') return 0;
+    return test.status === 'flaky' ? 1 : 2;
+  }
+
+  var FILE_TYPES = {
+    'application/json': 'JSON', 'text/plain': 'Text', 'text/html': 'HTML', 'text/csv': 'CSV', 'text/markdown': 'Markdown',
+    'application/pdf': 'PDF', 'application/zip': 'ZIP', 'application/xml': 'XML', 'text/xml': 'XML',
+  };
+
+  // Names what a non-image attachment is, so a row never just says "File".
+  function fileLabel(file) {
+    if (file.kind === 'trace') return 'Trace';
+    if (file.kind === 'video') return 'Video';
+    var type = String(file.contentType || '').split(';')[0].trim().toLowerCase();
+    if (FILE_TYPES[type]) return FILE_TYPES[type];
+    var ext = (String(file.path || '').match(/\.([a-z0-9]{1,8})$/i) || [])[1];
+    return ext ? ext.toUpperCase() : 'File';
   }
 
   function fileRows(test, attempts, offset) {
     var rows = [];
     attempts.forEach(function (attempt, index) {
-        (attempt.attachments || []).forEach(function (file) {
-          if (file.kind === 'image') return;
-          var label = file.kind === 'trace' ? 'Trace' : file.kind === 'video' ? 'Video' : 'File';
+        var order = { video: 0, trace: 1 };
+        (attempt.attachments || []).filter(function (file) { return file.kind !== 'image'; }).map(function (file, at) {
+          return { file: file, at: at };
+        }).sort(function (a, b) {
+          return (order[a.file.kind] === undefined ? 2 : order[a.file.kind]) - (order[b.file.kind] === undefined ? 2 : order[b.file.kind]) || a.at - b.at;
+        }).forEach(function (item) {
+          var file = item.file;
+          var label = fileLabel(file);
           var line = [el('span', { class: 'file-kind' }, [label])];
-          if ((test.attempts || []).length > 1) line.push(el('span', { class: 'now-file' }, ['Attempt ' + (offset + index + 1)]));
-          if (file.omitted || !safeSrc(file.path)) {
-            line.push(el('span', { class: 'now-file' }, ['Not copied']));
+          if (file.kind === 'file' && file.name) line.push(el('span', { class: 'file-name-text' }, [file.name]));
+          if ((test.attempts || []).length > 1) line.push(el('span', { class: 'now-file' }, ['Attempt ' + (offset + index + 1) + ' · ' + attemptLabel(attempt.status)]));
+          var href = safeSrc(file.path);
+          if (file.omitted || !href) {
+            line.push(el('span', { class: 'now-file' }, [file.omitted ? 'Not copied: larger than 25MB' : 'Not available']));
           } else if (file.kind === 'video') {
-            line.push(el('video', { class: 'video', controls: 'true', preload: 'metadata', src: safeSrc(file.path) }));
+            line.push(el('a', { class: 'file-link', href: href, download: '' }, ['Download video']));
+            line.push(el('video', { class: 'video', controls: 'true', preload: 'metadata', playsinline: 'true', src: href, 'aria-label': 'Video: ' + test.title }));
           } else {
-            var href = safeSrc(file.path);
-            var linkText = file.kind === 'trace' ? 'Download trace' : (file.name || 'Download');
-            line.push(el('a', { class: 'file-link', href: href, download: '' }, [linkText]));
+            var linkText = file.kind === 'trace' ? 'Download trace' : 'Download';
+            line.push(el('a', { class: 'file-link', href: href, download: '', 'aria-label': file.kind === 'file' ? 'Download ' + (file.name || label) : null }, [linkText]));
             if (file.kind === 'trace') {
-              line.push(el('details', { class: 'trace-help' }, [el('summary', null, ['How to open a trace']), el('p', { class: 'hint' }, ['After downloading, run ', el('code', null, ['npx playwright show-trace "' + href.split('/').pop() + '"']), ' from the download folder.'])]));
+              line.push(el('details', { class: 'trace-help' }, [el('summary', null, ['How to open a trace']), el('p', { class: 'hint' }, ['After downloading, run ', el('code', null, ['npx playwright show-trace "' + href.split('/').pop() + '"']), ' from the download folder, or drop the file on trace.playwright.dev.'])]));
             }
           }
           rows.push(el('div', { class: 'file-row' }, line));

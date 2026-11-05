@@ -20,6 +20,10 @@ export type RebornOptions = {
   state?: string;
   defects?: string | string[];
   productSubtitle?: string;
+  brandName?: string;
+  brandCaption?: string;
+  dashboardTitle?: string;
+  history?: number;
   showCredit?: boolean;
   showPlaywrightVersion?: boolean;
   showProjects?: boolean;
@@ -48,6 +52,10 @@ export type ParsedOptions = {
   state: string;
   defects: string[];
   productSubtitle: string;
+  brandName: string;
+  brandCaption: string;
+  dashboardTitle: string;
+  history: number;
   showCredit: boolean;
   showPlaywrightVersion: boolean;
   showProjects: boolean;
@@ -129,7 +137,11 @@ export function parseOptions(options: RebornOptions = {}): ParsedOptions {
     environment: optionalText(options.environment, 'environment'),
     state: optionalText(options.state, 'state'),
     defects: defectsOf(options.defects),
-    productSubtitle: subtitle(options.productSubtitle),
+    productSubtitle: caption(options.productSubtitle, 'productSubtitle', 'Test Automation'),
+    brandName: textOr(options.brandName, 'brandName', 'Reborn'),
+    brandCaption: caption(options.brandCaption, 'brandCaption', 'Test reports'),
+    dashboardTitle: textOr(options.dashboardTitle, 'dashboardTitle', 'Run overview'),
+    history: historyCount(options.history),
     showCredit,
     showPlaywrightVersion,
     showProjects,
@@ -140,12 +152,27 @@ export function parseOptions(options: RebornOptions = {}): ParsedOptions {
   };
 }
 
-function subtitle(value: string | undefined): string {
-  if (value === undefined) return 'Test Automation';
+// A caption line: an empty string hides it.
+function caption(value: string | undefined, name: string, fallback: string): string {
+  if (value === undefined) return fallback;
   if (typeof value !== 'string') {
-    throw new Error('Reborn productSubtitle must be text.');
+    throw new Error(`Reborn ${name} must be text.`);
   }
   return value.trim();
+}
+
+function textOr(value: string | undefined, name: string, fallback: string): string {
+  return value === undefined ? fallback : optionalText(value, name);
+}
+
+const MAX_HISTORY = 100;
+
+function historyCount(value: number | undefined): number {
+  if (value === undefined) return 0;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > MAX_HISTORY) {
+    throw new Error(`Reborn history must be a whole number from 0 to ${MAX_HISTORY}.`);
+  }
+  return value;
 }
 
 function ignorePattern(value: string | false | undefined): string {

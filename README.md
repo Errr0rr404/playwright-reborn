@@ -27,7 +27,7 @@ That is the whole install. Overview, Tests, and Screenshots are always in the re
 - **Tests** is the list and one test. A test has Steps, Error, Logs, Screenshots, and Files when attachments are available. **Sort** can group the list by file, or sort it slowest, fastest, or by the time it started. On small screens, selecting a test brings its details into view. A selected test outside the first 200 results is pinned above the list.
 - **Screenshots** is the gallery. Filter it to every step, the last failing step, or the last step of a passing attempt.
 - **Logs** is output from the whole run. It is on by default.
-- **Files** is traces, video, and other files that are not pictures. It is on by default.
+- **Files** is traces, video, and other files that are not pictures. Videos play in the page. Failing tests come first, then flaky ones, and a test's videos come before its other files. Each row names the file type, such as Trace, Video, JSON, or Text. It is on by default.
 
 `#overview`, `#tests`, `#screenshots`, `#logs`, and `#files` open those pages. `#tests/<id>` opens one test. Keys `1` onward switch the pages that are present. `/` jumps to the find field.
 
@@ -54,6 +54,10 @@ Pass any of these next to the reporter. Omitted settings use the default.
   state: 'CA',
   defects: ['PAY-14'],
   productSubtitle: 'Test Automation',
+  brandName: 'Reborn',
+  brandCaption: 'Test reports',
+  dashboardTitle: 'Run overview',
+  history: 10,
   chartStyle: 'bar',
 }]
 ```
@@ -69,6 +73,10 @@ Pass any of these next to the reporter. Omitted settings use the default.
 | `overview` | `chart` | `chart` or `timeline`. Which view the overview opens on. The buttons on the page can still switch it. |
 | `chartStyle` | `bar` | `pie`, `bar`, or `both`. Bars are the default to keep the overview compact. |
 | `productSubtitle` | `Test Automation` | The line under the overview title. An empty string hides it. |
+| `brandName` | `Reborn` | Any name. The large label at the top of the sidebar, and the start of the browser tab title. |
+| `brandCaption` | `Test reports` | The small line under `brandName`. An empty string hides it. |
+| `dashboardTitle` | `Run overview` | Any name. The heading of the Overview page. |
+| `history` | `0` | A whole number from 0 to 100. How many earlier runs to keep inside the report folder, under `history/`. The Overview lists them under Earlier runs, and an earlier run links back to the latest one. `0` keeps none, and clears `history/` on the next run. |
 | `showCredit` | `false` | `true` shows “Open source by World of Z” in the footer. It is not on the overview. |
 | `showPlaywrightVersion` | `false` | `true` shows the Playwright version in the header and the info grid. |
 | `showProjects` | `false` | `true` shows project names in the header and the info grid. |
@@ -86,6 +94,24 @@ Pass any of these next to the reporter. Omitted settings use the default.
 | `defects` | empty | One defect id, or a list. Playwright `metadata.defects` and `metadata.jira` are added too. |
 
 The overview also shows base URL, git branch, commit, projects, workers, shard, and the Playwright version when those values are present. Set them with the options above or with `metadata` in `playwright.config.ts`. `metadata.baseURL` wins over the project `baseURL`. Branch and commit are read from `GITHUB_REF_NAME`, `GIT_BRANCH`, `BRANCH_NAME`, `GITHUB_SHA`, `GIT_COMMIT`, and `COMMIT_SHA`.
+
+## Your own brand
+
+```ts
+['playwright-reborn', {
+  brandName: 'Acme',
+  brandCaption: 'QA reports',
+  dashboardTitle: 'Nightly regression',
+  company: 'Checkout team',
+  productSubtitle: '',
+}]
+```
+
+The browser tab reads `Acme · Checkout team · 1 failed. 10 tests.` The text is shown as plain text, never as HTML.
+
+## Run history
+
+Set `history` and keep `outputFolder` the same for every run. Each run moves the report it replaces into `history/<time>/`, with its traces and videos, and keeps the newest `history` runs. Open them from Earlier runs on the Overview. If each run writes to a new folder instead, there is no history to show. Archive the whole report folder to keep the links working.
 
 ## Screenshots
 

@@ -39,6 +39,10 @@ describe('parseOptions', () => {
       state: '',
       defects: [],
       productSubtitle: 'Test Automation',
+      brandName: 'Reborn',
+      brandCaption: 'Test reports',
+      dashboardTitle: 'Run overview',
+      history: 0,
       showCredit: false,
       showPlaywrightVersion: false,
       showProjects: false,
@@ -62,6 +66,25 @@ describe('parseOptions', () => {
   it('rejects an unknown overview', () => {
     assert.throws(() => parseOptions({ overview: 'pie' as 'chart' }), /overview must be/);
     assert.equal(parseOptions({ overview: 'timeline' }).overview, 'timeline');
+  });
+
+  it('takes a brand name, caption, and dashboard title with the same text rules as company', () => {
+    const parsed = parseOptions({ brandName: '  Acme Labs ', brandCaption: 'Example QA', dashboardTitle: 'Nightly run' });
+    assert.equal(parsed.brandName, 'Acme Labs');
+    assert.equal(parsed.brandCaption, 'Example QA');
+    assert.equal(parsed.dashboardTitle, 'Nightly run');
+    assert.equal(parseOptions({ brandCaption: '' }).brandCaption, '');
+    assert.equal(parseOptions({ productSubtitle: '  ' }).productSubtitle, '');
+    assert.throws(() => parseOptions({ brandName: '   ' }), /brandName must be/);
+    assert.throws(() => parseOptions({ dashboardTitle: '' }), /dashboardTitle must be/);
+    assert.throws(() => parseOptions({ brandCaption: 3 as unknown as string }), /brandCaption must be text/);
+  });
+
+  it('accepts a whole number of earlier runs to keep', () => {
+    assert.equal(parseOptions({ history: 5 }).history, 5);
+    assert.throws(() => parseOptions({ history: -1 }), /history must be/);
+    assert.throws(() => parseOptions({ history: 1.5 }), /history must be/);
+    assert.throws(() => parseOptions({ history: '3' as unknown as number }), /history must be/);
   });
 
   it('rejects a blank company name and an unknown accent', () => {

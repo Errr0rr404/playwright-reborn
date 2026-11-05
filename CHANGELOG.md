@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- `brandName` and `brandCaption` replace the fixed `Reborn` / `Test reports` sidebar label. The browser tab title starts with `brandName`, also before the page script runs. `dashboardTitle` sets the Overview heading.
+- `history` keeps earlier runs in `history/` inside the report folder. The Overview lists them under Earlier runs, and an earlier run links back to the latest report.
+- Files lists failing tests first, then flaky ones, and a test's videos before its other files. Rows name the file type (JSON, Text, Markdown, and so on), say why a file was not copied, and offer a video download. A video attached without a content type still plays.
+- The chart falls back to bars, matching the server default, when a report has no `chartStyle`.
+- The demo and the verifier draw with the Mac GPU, and the verifier no longer expects one particular clone folder name.
+
 ## 0.2.5
 
 - Put tests needing attention first and simplify the overview, typography, status explanations, and duration charts; use bars by default while preserving pie and combined options.

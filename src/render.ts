@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { baseType, embedJson } from './format';
 import type { PendingFile, Report, ReportAttachment } from './model';
+import { archivePrevious, nextHistory, readPrevious } from './history';
 import { prepareOutput } from './paths';
 
 export function embedFontUrls(css: string, dataUri: (file: string) => string): string {
@@ -16,7 +17,17 @@ function escapeScript(source: string): string {
   return source.replace(/<\/script/gi, '<\\/script');
 }
 
-export function renderHtml(json: string, assets?: { css: string; js: string }): string {
+export function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] as string);
+}
+
+// The script adds the run summary once the page loads.
+export function pageTitle(report: Pick<Report, 'brandName' | 'company'>): string {
+  const names = [report.brandName, report.company].map((name) => (name || '').trim()).filter(Boolean);
+  return [...new Set(names)].join(' · ') || 'Report';
+}
+
+export function renderHtml(json: string, assets?: { css: string; js: string }, title = 'Report'): string {
   const style = assets
     ? `<style>${escapeStyle(assets.css)}</style>`
     : '<link rel="stylesheet" href="assets/report.css">';
@@ -29,7 +40,7 @@ export function renderHtml(json: string, assets?: { css: string; js: string }): 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Report</title>
+<title>${escapeHtml(title)}</title>
 ${style}
 </head>
 <body>
@@ -179,11 +190,11 @@ async function writeReportContents(
   const indexPath = path.join(outputDir, output.reportFileName);
   const json = embedJson(report);
   if (!output.inline) {
-    await fs.writeFile(indexPath, renderHtml(json), 'utf8');
+    await fs.writeFile(indexPath, renderHtml(json, undefined, pageTitle(report)), 'utf8');
     return indexPath;
   }
   const documentAssets = await inlineDocument(uiDir);
-  await fs.writeFile(indexPath, renderHtml(json, documentAssets), 'utf8');
+  await fs.writeFile(indexPath, renderHtml(json, documentAssets, pageTitle(report)), 'utf8');
   return indexPath;
 }
 
@@ -192,7 +203,7 @@ export async function writeReport(
   report: Report,
   files: PendingFile[],
   uiDir: string,
-  output: { inline: boolean; reportFileName: string } = { inline: true, reportFileName: 'index.html' },
+  output: { inline: boolean; reportFileName: string; history?: number } = { inline: true, reportFileName: 'index.html' },
 ): Promise<string> {
   if (!/^[A-Za-z0-9._-]+\.html$/.test(output.reportFileName)) {
     throw new Error('Reborn reportFileName must be a single .html file name.');
@@ -202,7 +213,10 @@ export async function writeReport(
   await fs.mkdir(path.dirname(outputDir), { recursive: true });
   const staging = await fs.mkdtemp(path.join(path.dirname(outputDir), '.reborn-staging-'));
   try {
+    const keep = output.history || 0;
+    if (keep > 0) report.history = nextHistory(await readPrevious(outputDir), keep, output.reportFileName);
     await writeReportContents(staging, report, files, uiDir, output);
+    if (report.history) await archivePrevious(outputDir, staging, report.history);
     await prepareOutput(outputDir);
     await fs.rmdir(outputDir);
     await fs.rename(staging, outputDir);

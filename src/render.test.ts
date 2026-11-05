@@ -5,7 +5,8 @@ import { buildReport, type BuildInput } from './serialize';
 import type { ReportAttachment } from './model';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { embedFontUrls, renderHtml, writeReport } from './render';
+import { embedFontUrls, pageTitle, renderHtml, writeReport } from './render';
+import { readReportData } from './history';
 
 describe('embedFontUrls', () => {
   it('turns font files into data URIs', () => {
@@ -21,6 +22,13 @@ describe('renderHtml', () => {
     assert.equal(html.includes('assets/report.css'), false);
     assert.equal(html.includes('<style>body{}</style>'), true);
     assert.equal(html.includes('<script>var ready = true;</script>'), true);
+  });
+
+  it('escapes the page title', () => {
+    const title = pageTitle({ brandName: 'Acme <Labs>', company: 'Example & "QA"' });
+    assert.equal(title, 'Acme <Labs> · Example & "QA"');
+    assert.ok(renderHtml('{}', undefined, title).includes('<title>Acme &lt;Labs&gt; · Example &amp; &quot;QA&quot;</title>'));
+    assert.equal(pageTitle({ brandName: 'Acme', company: 'Acme' }), 'Acme');
   });
 });
 
@@ -58,6 +66,31 @@ describe('writeReport', () => {
       await writeReport(output, buildReport(input()).report, [], ui, { inline: false, reportFileName: 'renamed.html' });
       assert.ok((await fs.readFile(path.join(output, 'renamed.html'), 'utf8')).includes('assets/report.css'));
       assert.ok(await fs.readFile(path.join(output, 'assets/fonts/geist-latin-400-normal.woff2')));
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  });
+
+  it('keeps earlier runs in history/ and links archived pages back to the newest', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'reborn-history-'));
+    try {
+      const output = path.join(root, 'report');
+      const ui = path.join(__dirname, 'ui');
+      const run = async (minute: number) => {
+        const { report } = buildReport({ ...input(), generatedAt: `2026-10-01T15:0${minute}:00.000Z` });
+        await writeReport(output, report, [], ui, { inline: false, reportFileName: 'index.html', history: 2 });
+        return readReportData(await fs.readFile(path.join(output, 'index.html'), 'utf8')) as { history: { runs: { href: string }[] } };
+      };
+      assert.deepEqual((await run(1)).history.runs, []);
+      assert.equal((await run(2)).history.runs.length, 1);
+      await run(3);
+      const latest = await run(4);
+      const hrefs = latest.history.runs.map((item) => item.href);
+      assert.deepEqual(hrefs, ['history/2026-10-01T15-03-00-000Z/index.html', 'history/2026-10-01T15-02-00-000Z/index.html']);
+      assert.deepEqual((await fs.readdir(path.join(output, 'history'))).sort(), ['2026-10-01T15-02-00-000Z', '2026-10-01T15-03-00-000Z']);
+      const archived = readReportData(await fs.readFile(path.join(output, hrefs[0]), 'utf8')) as { history: unknown };
+      assert.deepEqual(archived.history, { base: '../../', latest: 'index.html', archived: true, runs: [] });
+      assert.ok(await fs.readFile(path.join(output, 'history/2026-10-01T15-03-00-000Z/assets/report.js')));
+      await writeReport(output, buildReport(input()).report, [], ui);
+      assert.equal(await fs.stat(path.join(output, 'history')).catch(() => null), null);
     } finally { await fs.rm(root, { recursive: true, force: true }); }
   });
 

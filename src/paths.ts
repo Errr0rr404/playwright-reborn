@@ -33,14 +33,21 @@ export function resolveOutputFolder(rootDir: string, outputFolder: string): stri
   return resolved;
 }
 
-async function isRebornReport(dir: string): Promise<boolean> {
+export const DATA_TAG = '<script id="reborn-data" type="application/json">';
+
+// The name of the Reborn page in a report folder, or '' when there is none.
+export async function findReportFile(dir: string): Promise<string> {
   const entries = await fs.readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.html')) continue;
     const html = await fs.readFile(path.join(dir, entry.name), 'utf8');
-    if (html.includes('<script id="reborn-data" type="application/json">')) return true;
+    if (html.includes(DATA_TAG)) return entry.name;
   }
-  return false;
+  return '';
+}
+
+async function isRebornReport(dir: string): Promise<boolean> {
+  return Boolean(await findReportFile(dir));
 }
 
 export async function prepareOutput(dir: string): Promise<void> {

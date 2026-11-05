@@ -88,6 +88,9 @@ export type BuildInput = {
   info?: InfoRow[];
   chartStyle?: ChartStyle;
   productSubtitle?: string;
+  brandName?: string;
+  brandCaption?: string;
+  dashboardTitle?: string;
   showCredit?: boolean;
   showPlaywrightVersion?: boolean;
   showProjects?: boolean;
@@ -263,7 +266,7 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
           name: parsed.name,
           contentType: attachment.contentType,
           path: target,
-          kind: attachmentKind(parsed.name, attachment.contentType),
+          kind: attachmentKind(parsed.name, attachment.contentType, attachment.path),
         };
         if (parsed.role) reportAttachment.role = parsed.role;
         if (parsed.stepTitle) reportAttachment.stepTitle = parsed.stepTitle;
@@ -322,6 +325,9 @@ export function buildReport(input: BuildInput): { report: Report; files: Pending
     overview: input.overview === 'timeline' ? 'timeline' : 'chart',
     chartStyle: input.chartStyle === 'pie' || input.chartStyle === 'both' ? input.chartStyle : 'bar',
     productSubtitle: input.productSubtitle === undefined ? 'Test Automation' : input.productSubtitle,
+    brandName: (input.brandName || '').trim() || 'Reborn',
+    brandCaption: input.brandCaption === undefined ? 'Test reports' : input.brandCaption,
+    dashboardTitle: (input.dashboardTitle || '').trim() || 'Run overview',
     showCredit: input.showCredit === true,
     showPlaywrightVersion: input.showPlaywrightVersion === true,
     showProjects: input.showProjects === true,

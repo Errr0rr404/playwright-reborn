@@ -84,6 +84,22 @@ export type ReportTest = {
 
 export type InfoRow = { label: string; value: string };
 
+export type HistoryRun = {
+  href: string;
+  generatedAt: string;
+  status: RunStatus;
+  summary: string;
+};
+
+// Earlier runs kept beside the report. `base` leads from this page back to the
+// newest report folder: empty for the newest report, '../../' for an archived one.
+export type ReportHistory = {
+  base: string;
+  latest: string;
+  archived: boolean;
+  runs: HistoryRun[];
+};
+
 export type Report = {
   version: 2;
   screenshots: ShotMode;
@@ -99,6 +115,10 @@ export type Report = {
   overview: OverviewMode;
   chartStyle: ChartStyle;
   productSubtitle: string;
+  brandName: string;
+  brandCaption: string;
+  dashboardTitle: string;
+  history?: ReportHistory;
   showCredit: boolean;
   showPlaywrightVersion: boolean;
   showProjects: boolean;

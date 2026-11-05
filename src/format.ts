@@ -76,10 +76,14 @@ export function extensionFor(contentType: string, sourcePath?: string): string {
   return match ? match[1].toLowerCase() : '';
 }
 
-export function attachmentKind(name: string, contentType: string): 'image' | 'video' | 'trace' | 'file' {
+const VIDEO_FILE = /\.(webm|mp4|m4v|mov)$/i;
+
+export function attachmentKind(name: string, contentType: string, sourcePath?: string): 'image' | 'video' | 'trace' | 'file' {
   const type = baseType(contentType);
   if (type.startsWith('image/')) return 'image';
   if (type.startsWith('video/')) return 'video';
+  // A video attached by path without a content type arrives as octet-stream.
+  if ((!type || type === 'application/octet-stream') && VIDEO_FILE.test(sourcePath || name)) return 'video';
   if (name.toLowerCase() === 'trace') return 'trace';
   return 'file';
 }

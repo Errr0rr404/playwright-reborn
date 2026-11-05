@@ -70,6 +70,8 @@ describe('attachment names', () => {
     assert.equal(attachmentKind('notes', 'application/zip'), 'file');
     assert.equal(attachmentKind('cart', 'image/png'), 'image');
     assert.equal(attachmentKind('clip', 'video/webm'), 'video');
+    assert.equal(attachmentKind('clip', 'application/octet-stream', '/tmp/run/clip.webm'), 'video');
+    assert.equal(attachmentKind('data', 'application/octet-stream', '/tmp/run/data.bin'), 'file');
   });
 });
 

@@ -109,6 +109,9 @@ describe('buildReport', () => {
 
     assert.equal(report.word, 'Broken');
     assert.equal(report.company, 'playwrightReport');
+    assert.equal(report.brandName, 'Reborn');
+    assert.equal(report.brandCaption, 'Test reports');
+    assert.equal(report.dashboardTitle, 'Run overview');
     assert.deepEqual(report.info, [{ label: 'Environment', value: 'qa' }]);
     assert.equal(report.accent, 'green');
     assert.equal(report.overview, 'chart');
