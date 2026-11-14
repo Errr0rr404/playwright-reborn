@@ -15,6 +15,11 @@ export async function runUiChecks(reportHtml) {
     }
   };
   const query = selector => doc.querySelector(selector);
+  // Duration ranges follow the run, so pick a range that holds tests.
+  const clickBusyBand = () => {
+    const band = [...doc.querySelectorAll('#duration [data-band]')].find(node => node.querySelector('.n').textContent !== '0');
+    assert(band, 'Every duration range is empty'); band.click();
+  };
   const click = selector => { const node = query(selector); assert(node, `Missing ${selector}`); node.click(); };
   const key = (node, value, extra = {}) => node.dispatchEvent(new win.KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true, ...extra }));
   const select = (selector, value) => {
@@ -124,7 +129,7 @@ export async function runUiChecks(reportHtml) {
     assert(!query('.reset-filters'), 'Clear filters is stale');
   });
   await check('Duration filters exclude skipped tests and use slowest ordering', async () => {
-    click('[data-tab="overview"]'); click('[data-band="under1"]');
+    click('[data-tab="overview"]'); clickBusyBand();
     assert(query('#sort-select').value === 'slowest', 'Wrong order');
     assert(!query('#tests .row[data-status="skipped"]'), 'Skipped test entered duration filter');
     click('.reset-filters');
@@ -139,7 +144,7 @@ export async function runUiChecks(reportHtml) {
     assert(doc.querySelectorAll('#tests .row').length === base.tests.length, 'View all tests kept a stale status filter');
     input('#find', 'no-such-test-92871');
     await waitFor(() => doc.querySelectorAll('#tests .row').length === 0);
-    click('[data-tab="overview"]'); click('[data-band="under1"]');
+    click('[data-tab="overview"]'); clickBusyBand();
     assert(query('#find').value === '', 'Duration link kept a stale search');
     assert(doc.querySelectorAll('#tests .row').length > 0, 'Duration link hid its tests');
     click('.reset-filters');

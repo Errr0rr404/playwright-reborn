@@ -90,13 +90,17 @@
   footBits.push(el('span', null, ['Generated ' + formatWhen(data.generatedAt)]));
   footBits.push(el('span', null, ['Use 1–' + TABS.length + ' to switch pages, or / to find a test.']));
   fill(document.getElementById('foot'), footBits);
+  // Duration ranges follow the run: a suite of quick tests gets millisecond
+  // ranges, a slow one gets minutes. The ids stay fixed so filters keep working.
+  var BAND_CUTS = durationCuts();
   var BANDS = [
-    ['under1', 'Under 1 minute'],
-    ['1to3', '1 to 3 minutes'],
-    ['3to5', '3 to 5 minutes'],
-    ['over5', 'Over 5 minutes'],
+    ['under1', 'Under ' + formatCut(BAND_CUTS[0])],
+    ['1to3', rangeLabel(BAND_CUTS[0], BAND_CUTS[1])],
+    ['3to5', rangeLabel(BAND_CUTS[1], BAND_CUTS[2])],
+    ['over5', 'Over ' + formatCut(BAND_CUTS[2])],
   ];
-  var CHART_COLORS = ['var(--heading)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)'];
+  // Faster ranges are lighter, slower ones darker. No status colors here.
+  var CHART_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--chart-4)'];
 
   syncTabOrientation();
   fitBrand();
@@ -412,12 +416,39 @@
     return found ? found[1] : '';
   }
 
-  // Same cuts as durationBand in src/format.ts: 1:00, 3:00, and 5:00.
+  // Picks three cut points from a ladder of round values so the slowest
+  // counted test lands in the last range. Runs with tests of five minutes or
+  // more keep the 1, 3 and 5 minute cuts used by durationBand in src/format.ts.
+  function durationCuts() {
+    var slowest = 0;
+    data.tests.forEach(function (test) {
+      if (test.status !== 'skipped' && isFinite(test.duration)) slowest = Math.max(slowest, test.duration);
+    });
+    if (slowest >= 300000) return [60000, 180000, 300000];
+    var ladder = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000, 180000, 300000];
+    var top = 2;
+    while (top < ladder.length - 1 && ladder[top + 1] <= slowest / 1.5) top += 1;
+    return [ladder[top - 2], ladder[top - 1], ladder[top]];
+  }
+
+  function formatCut(ms) {
+    if (ms < 1000) return ms + 'ms';
+    if (ms < 60000) return (ms / 1000) + 's';
+    return (ms / 60000) + ' min';
+  }
+
+  function rangeLabel(from, to) {
+    var a = formatCut(from);
+    var b = formatCut(to);
+    var unit = function (text) { return text.replace(/[\d.]+/, ''); };
+    return (unit(a) === unit(b) ? a.replace(unit(a), '') : a) + ' to ' + b;
+  }
+
   function durationBand(ms) {
     if (!isFinite(ms) || ms < 0) ms = 0;
-    if (ms < 60000) return 'under1';
-    if (ms < 180000) return '1to3';
-    if (ms < 300000) return '3to5';
+    if (ms < BAND_CUTS[0]) return 'under1';
+    if (ms < BAND_CUTS[1]) return '1to3';
+    if (ms < BAND_CUTS[2]) return '3to5';
     return 'over5';
   }
 
@@ -601,7 +632,7 @@
     var buttons = filters.map(function (filter) {
       return el('button', { class: 'count', type: 'button', 'data-status': filter[0], 'aria-pressed': 'false', title: filter[0] === 'flaky' ? 'Passed after failing an earlier attempt' : 'Show ' + filter[1] }, [
         el('span', { class: 'n' }, [String(filter[2])]),
-        ' ' + filter[1],
+        ' ' + (withFind ? filter[1] : filter[1].charAt(0).toUpperCase() + filter[1].slice(1)),
       ]);
     });
     var children = buttons;
@@ -1019,7 +1050,7 @@
           var src = safeSrc(file.path);
           var copy = el('div', { class: 'tile-copy' }, [
             el('p', { class: 'tile-title' }, [test.title]),
-            el('p', { class: 'tile-meta' }, ['Attempt ' + (index + 1) + ' · ' + attemptLabel(attempt.status)]),
+            attemptMeta(index, attempt.status),
             el('p', { class: 'tile-meta' }, [file.stepTitle || file.name || 'Screenshot']),
             el('button', { class: 'open-test', type: 'button', 'data-id': test.id, 'data-attempt': String(index), 'data-open-pane': 'shots' }, ['Open test']),
           ]);
@@ -1081,7 +1112,7 @@
         var blob = (test.title + ' ' + (attempt.stdout || '') + ' ' + (attempt.stderr || '')).toLowerCase();
         var nodes = [
           el('h2', null, [test.title]),
-          el('p', { class: 'tile-meta' }, ['Attempt ' + (index + 1) + ' · ' + attemptLabel(attempt.status)]),
+          attemptMeta(index, attempt.status),
         ];
         if (attempt.stdout) nodes.push(el('div', { class: 'well' }, [el('p', null, ['Output']), el('pre', null, [attempt.stdout])]));
         if (attempt.stderr) nodes.push(el('div', { class: 'well' }, [el('p', null, ['Error output']), el('pre', null, [attempt.stderr])]));
@@ -1093,6 +1124,7 @@
     fill(host, [
       pageHeading('Logs', 'Output recorded during the run. Open a test to see the matching attempt.'),
       el('input', { id: 'log-find', class: 'find', type: 'search', placeholder: 'Find in logs', 'aria-label': 'Find in logs' }),
+      el('p', { class: 'list-summary', id: 'log-summary', role: 'status', 'aria-live': 'polite', hidden: !cards.length }, [logSummary(cards.length, cards.length)]),
       el('p', { class: 'empty', id: 'log-empty', hidden: cards.length > 0 }, ['No logs in this run.']),
       el('div', { id: 'log-list' }, cards),
     ]);
@@ -1105,9 +1137,18 @@
       card.hidden = Boolean(query) && card.dataset.blob.indexOf(query) === -1;
       if (!card.hidden) visible += 1;
     });
+    var cards = document.querySelectorAll('.log-card').length;
+    var summary = document.getElementById('log-summary');
+    summary.textContent = logSummary(visible, cards);
+    summary.hidden = !visible;
     var empty = document.getElementById('log-empty');
     empty.hidden = visible > 0;
     empty.textContent = query ? 'No logs match. Try another search.' : 'No logs in this run.';
+  }
+
+  function logSummary(visible, total) {
+    var noun = total === 1 ? ' log' : ' logs';
+    return visible === total ? total + noun : visible + ' of ' + total + noun;
   }
 
   function ensureFiles() {
@@ -1585,6 +1626,10 @@
     if (test.status === 'timedOut') return 'Timed out';
     var status = test.status || 'passed';
     return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  function attemptMeta(index, status) {
+    return el('p', { class: 'tile-meta' }, ['Attempt ' + (index + 1) + ' · ', el('span', { class: 'sw', 'data-status': status }, [attemptLabel(status)])]);
   }
 
   function attemptLabel(status) {

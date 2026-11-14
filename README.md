@@ -23,7 +23,7 @@ That is the whole install. Overview, Tests, and Screenshots are always in the re
 
 ## Pages
 
-- **Overview** shows the outcome, counts, tests that need attention, and a duration chart. The pass percentage excludes skipped tests and counts flaky tests separately. Flaky means a test passed after a retry. The chart counts tests under 1 minute, from 1 to 3 minutes, from 3 to 5 minutes, and over 5 minutes. **Chart** and **Timeline** switch that section. Timeline lists every test by name.
+- **Overview** shows the outcome, counts, tests that need attention, and a duration chart. The pass percentage excludes skipped tests and counts flaky tests separately. Flaky means a test passed after a retry. The chart sorts tests into four duration ranges that follow the run: a quick suite gets ranges such as under 50ms, 50 to 100ms, 100 to 250ms and over 250ms, and a run with a test of 5 minutes or more uses under 1 minute, 1 to 3, 3 to 5, and over 5 minutes. The slowest test is always in the last range. **Chart** and **Timeline** switch that section. Timeline lists every test by name.
 - **Tests** is the list and one test. A test has Steps, Error, Logs, Screenshots, and Files when attachments are available. **Sort** can group the list by file, or sort it slowest, fastest, or by the time it started. On small screens, selecting a test brings its details into view. A selected test outside the first 200 results is pinned above the list.
 - **Screenshots** is the gallery. Filter it to every step, the last failing step, or the last step of a passing attempt.
 - **Logs** is output from the whole run. It is on by default.

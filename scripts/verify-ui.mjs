@@ -53,11 +53,12 @@ assert.equal(await page.locator('.pie').count(), data.chartStyle === 'bar' ? 0 :
 assert.equal(await page.locator('#project-select').count(), 0);
 await page.waitForFunction(() => document.querySelector('#legend .count[data-status="failed"] .n')?.textContent === '1');
 const ran = data.tests.filter((test) => test.status !== 'skipped');
-const inBand = (min, max) => ran.filter((test) => test.duration >= min && (max == null || test.duration < max)).length;
-assert.equal(await page.locator('#duration [data-band="under1"] .n').innerText(), String(inBand(0, 60000)));
-assert.equal(await page.locator('#duration [data-band="1to3"] .n').innerText(), String(inBand(60000, 180000)));
-assert.equal(await page.locator('#duration [data-band="3to5"] .n').innerText(), String(inBand(180000, 300000)));
-assert.equal(await page.locator('#duration [data-band="over5"] .n').innerText(), String(inBand(300000, null)));
+// Ranges follow the run: every counted test lands in one, the slowest in the last.
+const bandCounts = await page.locator('#duration [data-band] .n').allInnerTexts();
+assert.equal(bandCounts.length, 4);
+assert.equal(bandCounts.reduce((sum, n) => sum + Number(n), 0), ran.length);
+assert.ok(Number(bandCounts[3]) >= 1, 'The slowest test is not in the last range');
+assert.equal((await page.locator('#duration').innerText()).includes('minute'), false);
 assert.equal(await page.getByRole('heading', { name: 'Slowest' }).count(), 0);
 assert.equal(await page.locator('#strip-window').isHidden(), true);
 await page.getByRole('button', { name: 'Timeline', exact: true }).click();
@@ -80,13 +81,16 @@ const strip = await page.locator('#strip').elementHandle();
 assert.equal(await page.locator('#now').count(), 0);
 await page.screenshot({ path: '/tmp/reborn-landing.png', fullPage: true });
 
-await page.locator('#duration [data-band="under1"]').click();
+// Ranges follow the run, so the slowest test is always in the last one.
+await page.locator('#duration [data-band="over5"]').click();
 const longest = data.tests.slice().sort((a, b) => (b.duration || 0) - (a.duration || 0) || a.title.localeCompare(b.title))[0];
-assert.ok((await page.locator('.band-clear').innerText()).includes('Under 1 minute'));
+assert.ok((await page.locator('.band-clear').innerText()).startsWith('Over '));
 assert.equal(await page.locator('#sort-select').inputValue(), 'slowest');
 assert.equal(await page.locator('#tests .row .row-title').first().innerText(), longest.title);
 await page.locator('.band-clear').click();
 assert.equal(await page.locator('.band-clear').count(), 0);
+// The range filter selected the slowest test; go back to the failing one.
+await page.locator('#tests .row[data-status="failed"]').first().click();
 
 await page.getByLabel('Sort', { exact: true }).selectOption('grouped');
 await page.getByText('1842', { exact: false }).first().waitFor();

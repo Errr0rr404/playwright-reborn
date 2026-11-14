@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- The duration chart's ranges follow the run. A suite of quick tests used to put every test under 1 minute; now the ranges are picked from round values (50ms up to 5 minutes) so the slowest test lands in the last one. Runs with a test of 5 minutes or more keep the 1, 3 and 5 minute ranges.
+- Duration bars use one blue scale from light (fast) to dark (slow) instead of an amber that looked like the flaky color.
+- Run details lists custom `info` rows the same way as the built-in ones, label on the left and value on the right.
+- The line between the test list and the selected test runs the full height of the taller column, and the test list shows a soft edge when more rows are above or below.
+- Logs are cards like the Files page, with a count that follows the search (`2 of 6 logs`). Attempt status on the Logs and Screenshots pages is colored like everywhere else.
+- The Overview result legend is capitalized like the rest of the report.
+
 ## 0.3.2
 
 - The sidebar brand stays on one line. A name such as `Monarch EVV` used to wrap at 1440px. A long name now gets a smaller font, then an ellipsis, and hovering shows the full name and caption.
