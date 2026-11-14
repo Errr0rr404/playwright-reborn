@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0
+## 0.4.1
 
 - The duration chart's ranges follow the run. A suite of quick tests used to put every test under 1 minute; now the ranges are picked from round values (50ms up to 5 minutes) so the slowest test lands in the last one. Runs with a test of 5 minutes or more keep the 1, 3 and 5 minute ranges.
 - Duration bars use one blue scale from light (fast) to dark (slow) instead of an amber that looked like the flaky color.
